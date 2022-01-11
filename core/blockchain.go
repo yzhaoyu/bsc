@@ -91,6 +91,7 @@ const (
 	maxFutureBlocks        = 256
 	maxTimeFutureBlocks    = 30
 	maxBeyondBlocks        = 2048
+	prefetchTxNumber       = 100
 
 	diffLayerFreezerRecheckInterval = 3 * time.Second
 	diffLayerPruneRecheckInterval   = 1 * time.Second // The interval to prune unverified diff layers
@@ -236,11 +237,12 @@ type BlockChain struct {
 	running       int32          // 0 if chain is running, 1 when stopped
 	procInterrupt int32          // interrupt signaler for block processing
 
-	engine    consensus.Engine
-	validator Validator // Block and state validator interface
-	processor Processor // Block transaction processor interface
-	forker    *ForkChoice
-	vmConfig  vm.Config
+	engine     consensus.Engine
+	prefetcher Prefetcher
+	validator  Validator // Block and state validator interface
+	processor  Processor // Block transaction processor interface
+	forker     *ForkChoice
+	vmConfig   vm.Config
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -296,6 +298,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		diffNumToBlockHashes:  make(map[uint64]map[common.Hash]struct{}),
 		diffPeersToDiffHashes: make(map[string]map[common.Hash]struct{}),
 	}
+	bc.prefetcher = NewStatePrefetcher(chainConfig, bc, engine)
 	bc.forker = NewForkChoice(bc, shouldPreserve)
 	bc.validator = NewBlockValidator(chainConfig, bc, engine)
 	bc.processor = NewStateProcessor(chainConfig, bc, engine)
@@ -1782,10 +1785,18 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals, setHead bool)
 
 		// Enable prefetching to pull in trie node paths while processing transactions
 		statedb.StartPrefetcher("chain")
-
+		var followupInterrupt uint32
+		// For diff sync, it may fallback to full sync, so we still do prefetch
+		if len(block.Transactions()) >= prefetchTxNumber {
+			throwaway := statedb.Copy()
+			go func(start time.Time, followup *types.Block, throwaway *state.StateDB, interrupt *uint32) {
+				bc.prefetcher.Prefetch(followup, throwaway, bc.vmConfig, &followupInterrupt)
+			}(time.Now(), block, throwaway, &followupInterrupt)
+		}
 		//Process block using the parent state as reference point
 		substart := time.Now()
 		statedb, receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig)
+		atomic.StoreUint32(&followupInterrupt, 1)
 		activeState = statedb
 		if err != nil {
 			bc.reportBlock(block, receipts, err)
