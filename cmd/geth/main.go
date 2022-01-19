@@ -166,6 +166,8 @@ var (
 		utils.GpoIgnoreGasPriceFlag,
 		utils.MinerNotifyFullFlag,
 		configFileFlag,
+		utils.BlockAmountReserved,
+		utils.CheckSnapshotWithMPT,
 	}
 
 	rpcFlags = []cli.Flag{

@@ -35,7 +35,7 @@ import (
 // injects into the database the block hash->number mappings.
 func InitDatabaseFromFreezer(db ethdb.Database) {
 	// If we can't access the freezer or it's empty, abort
-	frozen, err := db.Ancients()
+	frozen, err := db.ItemAmountInAncient()
 	if err != nil || frozen == 0 {
 		return
 	}
@@ -44,12 +44,13 @@ func InitDatabaseFromFreezer(db ethdb.Database) {
 		start  = time.Now()
 		logged = start.Add(-7 * time.Second) // Unindex during import is fast, don't double log
 		hash   common.Hash
+		offset = db.AncientOffSet()
 	)
-	for i := uint64(0); i < frozen; {
+	for i := uint64(0) + offset; i < frozen+offset; i++ {
 		// We read 100K hashes at a time, for a total of 3.2M
 		count := uint64(100_000)
-		if i+count > frozen {
-			count = frozen - i
+		if i+count > frozen+offset {
+			count = frozen+offset - i
 		}
 		data, err := db.AncientRange(freezerHashTable, i, count, 32*count)
 		if err != nil {

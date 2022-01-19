@@ -94,6 +94,8 @@ type freezer struct {
 	quit      chan struct{}
 	wg        sync.WaitGroup
 	closeOnce sync.Once
+
+	offset uint64 // Starting BlockNumber in current freezer
 }
 
 // newFreezer creates a chain freezer that moves ancient chain data into
@@ -196,7 +198,7 @@ func (f *freezer) Close() error {
 // in the freezer.
 func (f *freezer) HasAncient(kind string, number uint64) (bool, error) {
 	if table := f.tables[kind]; table != nil {
-		return table.has(number), nil
+		return table.has(number - f.offset), nil
 	}
 	return false, nil
 }
@@ -204,7 +206,7 @@ func (f *freezer) HasAncient(kind string, number uint64) (bool, error) {
 // Ancient retrieves an ancient binary blob from the append-only immutable files.
 func (f *freezer) Ancient(kind string, number uint64) ([]byte, error) {
 	if table := f.tables[kind]; table != nil {
-		return table.Retrieve(number)
+		return table.Retrieve(number - f.offset)
 	}
 	return nil, errUnknownTable
 }
@@ -224,6 +226,16 @@ func (f *freezer) AncientRange(kind string, start, count, maxBytes uint64) ([][]
 // Ancients returns the length of the frozen items.
 func (f *freezer) Ancients() (uint64, error) {
 	return atomic.LoadUint64(&f.frozen), nil
+}
+
+// ItemAmountInAncient returns the actual length of current ancientDB.
+func (f *freezer) ItemAmountInAncient() (uint64, error) {
+	return atomic.LoadUint64(&f.frozen) - atomic.LoadUint64(&f.offset), nil
+}
+
+// AncientOffSet returns the offset of current ancientDB.
+func (f *freezer) AncientOffSet() uint64 {
+	return atomic.LoadUint64(&f.offset)
 }
 
 // AncientSize returns the ancient size of the specified category.
@@ -293,7 +305,7 @@ func (f *freezer) TruncateAncients(items uint64) error {
 		return nil
 	}
 	for _, table := range f.tables {
-		if err := table.truncate(items); err != nil {
+		if err := table.truncate(items - f.offset); err != nil {
 			return err
 		}
 	}
