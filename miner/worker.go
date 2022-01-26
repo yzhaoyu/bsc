@@ -751,6 +751,7 @@ func (w *worker) resultLoop() {
 				logs = append(logs, receipt.Logs...)
 			}
 			// Commit block and state to database.
+			task.state.SetExpectedStateRoot(block.Root())
 			_, err := w.chain.WriteBlockAndSetHead(block, receipts, logs, task.state, true)
 			if err != nil {
 				log.Error("Failed writing block to chain", "err", err)
@@ -1187,6 +1188,10 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 		env := env.copy()
 		s := w.current.state
 		// TODO set uncle to nil here
+		err := s.WaitPipeVerification()
+		if err != nil {
+			return err
+		}
 		block, receipts, err := w.engine.FinalizeAndAssemble(w.chain, types.CopyHeader(w.current.header), s, w.current.txs, nil, w.current.receipts)
 		if err != nil {
 			return err
