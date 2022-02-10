@@ -144,7 +144,6 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		merger:          config.Merger,
 		whitelist:       config.Whitelist,
 		directBroadcast: config.DirectBroadcast,
-		txsyncCh:        make(chan *txsync),
 		quitSync:        make(chan struct{}),
 	}
 	if config.Sync == downloader.FullSync {

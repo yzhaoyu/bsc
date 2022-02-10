@@ -263,8 +263,6 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 		return params.ChapelChainConfig
 	case ghash == params.RialtoGenesisHash:
 		return params.RialtoChainConfig
-	case ghash == params.YoloV3GenesisHash:
-		return params.YoloV3ChainConfig
 	default:
 		return params.AllEthashProtocolChanges
 	}

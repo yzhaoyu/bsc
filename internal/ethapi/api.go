@@ -1363,12 +1363,12 @@ func newRPCPendingTransaction(tx *types.Transaction, current *types.Header, conf
 }
 
 // newRPCTransactionsFromBlockIndex returns transactions that will serialize to the RPC representation.
-func newRPCTransactionsFromBlockIndex(b *types.Block) []*RPCTransaction {
+func newRPCTransactionsFromBlockIndex(b *types.Block, config *params.ChainConfig) []*RPCTransaction {
 	txs := b.Transactions()
 	result := make([]*RPCTransaction, 0, len(txs))
 
 	for idx, tx := range txs {
-		result = append(result, newRPCTransaction(tx, b.Hash(), b.NumberU64(), uint64(idx)))
+		result = append(result, newRPCTransaction(tx, b.Hash(), b.NumberU64(), uint64(idx), b.BaseFee(), config))
 	}
 	return result
 }
@@ -1538,7 +1538,7 @@ func (s *PublicTransactionPoolAPI) GetBlockTransactionCountByHash(ctx context.Co
 // GetTransactionsByBlockNumber returns all the transactions for the given block number.
 func (s *PublicTransactionPoolAPI) GetTransactionsByBlockNumber(ctx context.Context, blockNr rpc.BlockNumber) []*RPCTransaction {
 	if block, _ := s.b.BlockByNumber(ctx, blockNr); block != nil {
-		return newRPCTransactionsFromBlockIndex(block)
+		return newRPCTransactionsFromBlockIndex(block, s.b.ChainConfig())
 	}
 	return nil
 }
@@ -1710,13 +1710,12 @@ func (s *PublicTransactionPoolAPI) GetTransactionDataAndReceipt(ctx context.Cont
 	}
 	receipt := receipts[index]
 
-	var signer types.Signer = types.FrontierSigner{}
-	if tx.Protected() {
-		signer = types.NewEIP155Signer(tx.ChainId())
-	}
+	// Derive the sender.
+	bigblock := new(big.Int).SetUint64(blockNumber)
+	signer := types.MakeSigner(s.b.ChainConfig(), bigblock)
 	from, _ := types.Sender(signer, tx)
-
-	rpcTransaction := newRPCTransaction(tx, blockHash, blockNumber, index)
+	// TODO use nil basefee before landon fork is enabled
+	rpcTransaction := newRPCTransaction(tx, blockHash, blockNumber, index, nil, s.b.ChainConfig())
 
 	txData := map[string]interface{}{
 		"blockHash":        rpcTransaction.BlockHash.String(),

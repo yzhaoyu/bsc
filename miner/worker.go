@@ -1030,7 +1030,7 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Number:     num.Add(num, common.Big1),
-		GasLimit:   core.CalcGasLimit(parent.GasLimit(), w.config.GasCeil),
+		GasLimit:   core.CalcGasLimit(parent.Header(), w.config.GasFloor, w.config.GasCeil),
 		Time:       timestamp,
 		Coinbase:   genParams.coinbase,
 	}
@@ -1045,8 +1045,8 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 	if w.chainConfig.IsLondon(header.Number) {
 		header.BaseFee = misc.CalcBaseFee(w.chainConfig, parent.Header())
 		if !w.chainConfig.IsLondon(parent.Number()) {
-			parentGasLimit := parent.GasLimit() * params.ElasticityMultiplier
-			header.GasLimit = core.CalcGasLimit(parentGasLimit, w.config.GasCeil)
+			// TODO CalcGasLimit need change if we enable London upgrade
+			header.GasLimit = core.CalcGasLimit(parent.Header(), w.config.GasFloor, w.config.GasCeil)
 		}
 	}
 	// Run the consensus preparation with the default or customized consensus engine.
@@ -1086,8 +1086,7 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 		commitUncles(w.remoteUncles)
 	}
 	return env, nil
-	}
-
+}
 
 // fillTransactions retrieves the pending transactions from the txpool and fills them
 // into the given sealing block. The transaction selection and ordering strategy can
@@ -1115,9 +1114,6 @@ func (w *worker) fillTransactions(interrupt *int32, env *environment) {
 			return
 		}
 	}
-	commitTxsTimer.UpdateSince(start)
-	log.Info("Gas pool", "height", header.Number.String(), "pool", w.current.gasPool.String())
-}
 }
 
 // generateWork generates a sealing block based on the given parameters.
@@ -1129,7 +1125,9 @@ func (w *worker) generateWork(params *generateParams) (*types.Block, error) {
 	defer work.discard()
 
 	w.fillTransactions(nil, work)
-	return w.engine.FinalizeAndAssemble(w.chain, work.header, work.state, work.txs, work.unclelist(), work.receipts)
+	//TODO need check
+	block, _, err := w.engine.FinalizeAndAssemble(w.chain, work.header, work.state, work.txs, work.unclelist(), work.receipts)
+	return block, err
 }
 
 // commitWork generates several new sealing tasks based on the parent block
@@ -1169,6 +1167,7 @@ func (w *worker) commitWork(interrupt *int32, noempty bool, timestamp int64) {
 	}
 	w.current = work
 }
+
 // commit runs any post-transaction state modifications, assembles the final block
 // and commits new work if consensus engine is running.
 // Note the assumption is held that the mutation is allowed to the passed env, do
@@ -1182,18 +1181,19 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 		// https://github.com/ethereum/go-ethereum/issues/24299
 		env := env.copy()
 		s := w.current.state.Copy()
-		block, receipts, err := w.engine.FinalizeAndAssemble(w.chain, types.CopyHeader(w.current.header), s, w.current.txs, uncles, w.current.receipts)
+		// TODO set uncle to nil here
+		block, receipts, err := w.engine.FinalizeAndAssemble(w.chain, types.CopyHeader(w.current.header), s, w.current.txs, nil, w.current.receipts)
 		if err != nil {
 			return err
 		}
 		// If we're post merge, just ignore
 		if !w.isTTDReached(block.Header()) {
 			select {
-			case w.taskCh <- &task{receipts: env.receipts, state: env.state, block: block, createdAt: time.Now()}:
+			case w.taskCh <- &task{receipts: receipts, state: env.state, block: block, createdAt: time.Now()}:
 				w.unconfirmed.Shift(block.NumberU64() - 1)
 				log.Info("Commit new sealing work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
 					"uncles", len(env.uncles), "txs", env.tcount,
-					"gas", block.GasUsed(), "fees", totalFees(block, env.receipts),
+					"gas", block.GasUsed(), "fees", totalFees(block, receipts),
 					"elapsed", common.PrettyDuration(time.Since(start)))
 
 			case <-w.exitCh:

@@ -18,14 +18,15 @@
 package ethconfig
 
 import (
-	"github.com/ethereum/go-ethereum/consensus/parlia"
-	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"math/big"
 	"os"
 	"os/user"
 	"path/filepath"
 	"runtime"
 	"time"
+
+	"github.com/ethereum/go-ethereum/consensus/parlia"
+	"github.com/ethereum/go-ethereum/internal/ethapi"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -46,21 +47,17 @@ import (
 var FullNodeGPO = gasprice.Config{
 	Blocks:          20,
 	Percentile:      60,
-	MaxHeaderHistory: 1024,
-	MaxBlockHistory:  1024,
 	MaxPrice:        gasprice.DefaultMaxPrice,
 	OracleThreshold: 1000,
-	IgnorePrice:      gasprice.DefaultIgnorePrice,
+	IgnorePrice:     gasprice.DefaultIgnorePrice,
 }
 
 // LightClientGPO contains default gasprice oracle settings for light client.
 var LightClientGPO = gasprice.Config{
-	Blocks:           2,
-	Percentile:       60,
-	MaxHeaderHistory: 300,
-	MaxBlockHistory:  5,
-	MaxPrice:         gasprice.DefaultMaxPrice,
-	IgnorePrice:      gasprice.DefaultIgnorePrice,
+	Blocks:      2,
+	Percentile:  60,
+	MaxPrice:    gasprice.DefaultMaxPrice,
+	IgnorePrice: gasprice.DefaultIgnorePrice,
 }
 
 // Defaults contains default settings for use on the Ethereum main net.
@@ -222,9 +219,9 @@ func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, co
 	var engine consensus.Engine
 	if chainConfig.Clique != nil {
 		engine = clique.New(chainConfig.Clique, db)
-	} else f chainConfig.Parlia != nil {
+	} else if chainConfig.Parlia != nil {
 		engine = parlia.New(chainConfig, db, ee, genesisHash)
-	} else{
+	} else {
 		switch config.PowMode {
 		case ethash.ModeFake:
 			log.Warn("Ethash used in fake mode")

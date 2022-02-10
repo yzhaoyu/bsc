@@ -25,7 +25,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -342,11 +341,6 @@ func (bc *BlockChain) GasLimit() uint64 {
 // Genesis retrieves the chain's genesis block.
 func (bc *BlockChain) Genesis() *types.Block {
 	return bc.genesisBlock
-}
-
-// GetVMConfig returns the block chain VM config.
-func (bc *BlockChain) GetVMConfig() *vm.Config {
-	return &bc.vmConfig
 }
 
 // SetTxLookupLimit is responsible for updating the txlookup limit to the

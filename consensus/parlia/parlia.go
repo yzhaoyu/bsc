@@ -934,7 +934,7 @@ func (p *Parlia) getCurrentValidators(blockHash common.Hash) ([]common.Address, 
 	msgData := (hexutil.Bytes)(data)
 	toAddress := common.HexToAddress(systemcontracts.ValidatorContract)
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
-	result, err := p.ethAPI.Call(ctx, ethapi.CallArgs{
+	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
 		To:   &toAddress,
 		Data: &msgData,
@@ -1112,7 +1112,7 @@ func (p *Parlia) applyTransaction(
 		// move to next
 		*receivedTxs = (*receivedTxs)[1:]
 	}
-	state.Prepare(expectedTx.Hash(), common.Hash{}, len(*txs))
+	state.Prepare(expectedTx.Hash(), len(*txs))
 	gasUsed, err := applyMessage(msg, state, header, p.chainConfig, chainContext)
 	if err != nil {
 		return err
@@ -1130,9 +1130,8 @@ func (p *Parlia) applyTransaction(
 	receipt.GasUsed = gasUsed
 
 	// Set the receipt logs and create a bloom for filtering
-	receipt.Logs = state.GetLogs(expectedTx.Hash())
+	receipt.Logs = state.GetLogs(expectedTx.Hash(), common.Hash{})
 	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
-	receipt.BlockHash = state.BlockHash()
 	receipt.BlockNumber = header.Number
 	receipt.TransactionIndex = uint(state.TxIndex())
 	*receipts = append(*receipts, receipt)
