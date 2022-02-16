@@ -158,11 +158,12 @@ type snapshot interface {
 // storage data to avoid expensive multi-level trie lookups; and to allow sorted,
 // cheap iteration of the account/storage tries for sync aid.
 type Tree struct {
-	diskdb ethdb.KeyValueStore      // Persistent database to store the snapshot
-	triedb *trie.Database           // In-memory cache to access the trie through
-	cache  int                      // Megabytes permitted to use for read caches
-	layers map[common.Hash]snapshot // Collection of all known layers
-	lock   sync.RWMutex
+	diskdb   ethdb.KeyValueStore      // Persistent database to store the snapshot
+	triedb   *trie.Database           // In-memory cache to access the trie through
+	cache    int                      // Megabytes permitted to use for read caches
+	layers   map[common.Hash]snapshot // Collection of all known layers
+	lock     sync.RWMutex
+	capLimit int
 
 	// Test hooks
 	onFlatten func() // Hook invoked when the bottom most diff layers are flattened
@@ -183,13 +184,14 @@ type Tree struct {
 //   This case happens when the snapshot is 'ahead' of the state trie.
 // - otherwise, the entire snapshot is considered invalid and will be recreated on
 //   a background thread.
-func New(diskdb ethdb.KeyValueStore, triedb *trie.Database, cache int, root common.Hash, async bool, rebuild bool, recovery bool) (*Tree, error) {
+func New(diskdb ethdb.KeyValueStore, triedb *trie.Database, cache, cap int, root common.Hash, async bool, rebuild bool, recovery bool) (*Tree, error) {
 	// Create a new, empty snapshot tree
 	snap := &Tree{
-		diskdb: diskdb,
-		triedb: triedb,
-		cache:  cache,
-		layers: make(map[common.Hash]snapshot),
+		diskdb:   diskdb,
+		triedb:   triedb,
+		cache:    cache,
+		capLimit: cap,
+		layers:   make(map[common.Hash]snapshot),
 	}
 	if !async {
 		defer snap.waitBuild()
@@ -355,6 +357,10 @@ func (t *Tree) Update(blockRoot common.Hash, parentRoot common.Hash, destructs m
 	t.layers[snap.root] = snap
 	log.Debug("Snapshot updated", "blockRoot", blockRoot)
 	return nil
+}
+
+func (t *Tree) CapLimit() int {
+	return t.capLimit
 }
 
 // Cap traverses downwards the snapshot tree from a head block hash until the

@@ -18,11 +18,18 @@ package vm
 
 import (
 	"hash"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+var EVMInterpreterPool = sync.Pool{
+	New: func() interface{} {
+		return &EVMInterpreter{}
+	},
+}
 
 // Config are the configuration options for the Interpreter
 type Config struct {
@@ -100,11 +107,12 @@ func NewEVMInterpreter(evm *EVM, cfg Config) *EVMInterpreter {
 			cfg.JumpTable = &copy
 		}
 	}
-
-	return &EVMInterpreter{
-		evm: evm,
-		cfg: cfg,
-	}
+	evmInterpreter := EVMInterpreterPool.Get().(*EVMInterpreter)
+	evmInterpreter.evm = evm
+	evmInterpreter.cfg = cfg
+	evmInterpreter.readOnly = false
+	evmInterpreter.returnData = nil
+	return evmInterpreter
 }
 
 // Run loops and evaluates the contract's code with the given input data and returns
@@ -216,6 +224,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 				}
 			}
 			// Consume the gas and return an error if not enough gas is available.
+			// cost is explicitly set so that the capture state defer method can get the proper cost
 			// cost is explicitly set so that the capture state defer method can get the proper cost
 			var dynamicCost uint64
 			dynamicCost, err = operation.dynamicGas(in.evm, contract, stack, mem, memorySize)
