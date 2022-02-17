@@ -25,9 +25,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/ethereum/go-ethereum/consensus/parlia"
-	"github.com/ethereum/go-ethereum/internal/ethapi"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
@@ -86,6 +83,7 @@ var Defaults = Config{
 	TrieTimeout:             60 * time.Minute,
 	TriesInMemory:           128,
 	SnapshotCache:           102,
+	DiffBlock:               uint64(86400),
 	Miner: miner.Config{
 		GasCeil:       8000000,
 		GasPrice:      big.NewInt(params.GWei),
@@ -129,17 +127,20 @@ type Config struct {
 	Genesis *core.Genesis `toml:",omitempty"`
 
 	// Protocol options
-	NetworkId uint64 // Network ID to use for selecting peers to connect to
-	SyncMode  downloader.SyncMode
+	NetworkId              uint64 // Network ID to use for selecting peers to connect to
+	SyncMode               downloader.SyncMode
+	DisablePeerTxBroadcast bool
 
 	// This can be set to list of enrtree:// URLs which will be queried for
 	// for nodes to connect to.
 	EthDiscoveryURLs  []string
 	SnapDiscoveryURLs []string
 
-	NoPruning       bool // Whether to disable pruning and flush everything to disk
-	DirectBroadcast bool
-	RangeLimit      bool
+	NoPruning           bool // Whether to disable pruning and flush everything to disk
+	DirectBroadcast     bool
+	DisableSnapProtocol bool //Whether disable snap protocol
+	DiffSync            bool // Whether support diff sync
+	RangeLimit          bool
 
 	TxLookupLimit uint64 `toml:",omitempty"` // The maximum number of blocks from head whose tx indices are reserved.
 
@@ -165,6 +166,9 @@ type Config struct {
 	DatabaseHandles    int  `toml:"-"`
 	DatabaseCache      int
 	DatabaseFreezer    string
+	DatabaseDiff       string
+	PersistDiff        bool
+	DiffBlock          uint64
 
 	TrieCleanCache          int
 	TrieCleanCacheJournal   string        `toml:",omitempty"` // Disk journal directory for trie cache to survive node restarts

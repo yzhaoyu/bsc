@@ -33,6 +33,9 @@ var (
 	ErrNoGenesis = errors.New("genesis not found in chain")
 
 	errSideChainReceipts = errors.New("side blocks can't be accepted as ancient chain data")
+
+	// ErrDiffLayerNotFound is returned when diff layer not found.
+	ErrDiffLayerNotFound = errors.New("diff layer not found")
 )
 
 // List of evm-call-message pre-checking errors. All state transition messages will

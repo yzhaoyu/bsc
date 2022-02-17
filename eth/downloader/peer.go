@@ -23,7 +23,6 @@ import (
 	"errors"
 	"math/big"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -106,100 +105,6 @@ func (p *peerConnection) Reset() {
 	defer p.lock.Unlock()
 
 	p.lacking = make(map[common.Hash]struct{})
-}
-
-// FetchHeaders sends a header retrieval request to the remote peer.
-func (p *peerConnection) FetchHeaders(from uint64, count int) error {
-	// Short circuit if the peer is already fetching
-	if !atomic.CompareAndSwapInt32(&p.headerIdle, 0, 1) {
-		return errAlreadyFetching
-	}
-	p.headerStarted = time.Now()
-
-	// Issue the header retrieval request (absolute upwards without gaps)
-
-	go p.peer.RequestHeadersByNumber(from, count, 0, false)
-	return nil
-}
-
-// FetchBodies sends a block body retrieval request to the remote peer.
-func (p *peerConnection) FetchBodies(request *fetchRequest) error {
-	// Short circuit if the peer is already fetching
-	if !atomic.CompareAndSwapInt32(&p.blockIdle, 0, 1) {
-		return errAlreadyFetching
-	}
-	p.blockStarted = time.Now()
-
-	go func() {
-		// Convert the header set to a retrievable slice
-		hashes := make([]common.Hash, 0, len(request.Headers))
-		for _, header := range request.Headers {
-			hashes = append(hashes, header.Hash())
-		}
-		p.peer.RequestBodies(hashes)
-	}()
-
-	return nil
-}
-
-// FetchReceipts sends a receipt retrieval request to the remote peer.
-func (p *peerConnection) FetchReceipts(request *fetchRequest) error {
-	// Short circuit if the peer is already fetching
-	if !atomic.CompareAndSwapInt32(&p.receiptIdle, 0, 1) {
-		return errAlreadyFetching
-	}
-	p.receiptStarted = time.Now()
-
-	go func() {
-		// Convert the header set to a retrievable slice
-		hashes := make([]common.Hash, 0, len(request.Headers))
-		for _, header := range request.Headers {
-			hashes = append(hashes, header.Hash())
-		}
-		p.peer.RequestReceipts(hashes)
-	}()
-
-	return nil
-}
-
-// FetchNodeData sends a node state data retrieval request to the remote peer.
-func (p *peerConnection) FetchNodeData(hashes []common.Hash) error {
-	// Short circuit if the peer is already fetching
-	if !atomic.CompareAndSwapInt32(&p.stateIdle, 0, 1) {
-		return errAlreadyFetching
-	}
-	p.stateStarted = time.Now()
-	go p.peer.RequestNodeData(hashes)
-
-	return nil
-}
-
-// SetHeadersIdle sets the peer to idle, allowing it to execute new header retrieval
-// requests. Its estimated header retrieval throughput is updated with that measured
-// just now.
-func (p *peerConnection) SetHeadersIdle(delivered int, deliveryTime time.Time) {
-	p.setIdle(deliveryTime.Sub(p.headerStarted), delivered, &p.headerThroughput, &p.headerIdle)
-}
-
-// SetBodiesIdle sets the peer to idle, allowing it to execute block body retrieval
-// requests. Its estimated body retrieval throughput is updated with that measured
-// just now.
-func (p *peerConnection) SetBodiesIdle(delivered int, deliveryTime time.Time) {
-	p.setIdle(deliveryTime.Sub(p.blockStarted), delivered, &p.blockThroughput, &p.blockIdle)
-}
-
-// SetReceiptsIdle sets the peer to idle, allowing it to execute new receipt
-// retrieval requests. Its estimated receipt retrieval throughput is updated
-// with that measured just now.
-func (p *peerConnection) SetReceiptsIdle(delivered int, deliveryTime time.Time) {
-	p.setIdle(deliveryTime.Sub(p.receiptStarted), delivered, &p.receiptThroughput, &p.receiptIdle)
-}
-
-// SetNodeDataIdle sets the peer to idle, allowing it to execute new state trie
-// data retrieval requests. Its estimated state retrieval throughput is updated
-// with that measured just now.
-func (p *peerConnection) SetNodeDataIdle(delivered int, deliveryTime time.Time) {
-	p.setIdle(deliveryTime.Sub(p.stateStarted), delivered, &p.stateThroughput, &p.stateIdle)
 }
 
 // UpdateHeaderRate updates the peer's estimated header retrieval throughput with

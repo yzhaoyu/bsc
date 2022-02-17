@@ -169,6 +169,7 @@ It's also usable without snapshot enabled.
 					utils.ExcludeStorageFlag,
 					utils.StartKeyFlag,
 					utils.DumpLimitFlag,
+					utils.TriesInMemoryFlag,
 				},
 				Description: `
 This command is semantically equivalent to 'geth dump', but uses the snapshots
@@ -472,7 +473,8 @@ func dumpState(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	snaptree, err := snapshot.New(db, trie.NewDatabase(db), 256, root, false, false, false)
+	triesInMemory := ctx.GlobalUint64(utils.TriesInMemoryFlag.Name)
+	snaptree, err := snapshot.New(db, trie.NewDatabase(db), int(triesInMemory), 256, root, false, false, false)
 	if err != nil {
 		return err
 	}

@@ -162,7 +162,7 @@ func testBlockChainImport(chain types.Blocks, blockchain *BlockChain) error {
 		if err != nil {
 			return err
 		}
-		receipts, _, usedGas, err := blockchain.processor.Process(block, statedb, vm.Config{})
+		statedb, receipts, _, usedGas, err := blockchain.processor.Process(block, statedb, vm.Config{})
 		if err != nil {
 			blockchain.reportBlock(block, receipts, err)
 			return err
@@ -1735,8 +1735,8 @@ func TestLargeReorgTrieGC(t *testing.T) {
 		t.Fatalf("failed to finalize competitor chain: %v", err)
 	}
 	for i, block := range competitor[:len(competitor)-TestTriesInMemory] {
-		if node, _ := chain.stateCache.TrieDB().Node(block.Root()); node != nil {
-			t.Fatalf("competitor %d: competing chain state missing", i)
+		if node, err := chain.stateCache.TrieDB().Node(block.Root()); node != nil {
+			t.Fatalf("competitor %d: competing chain state missing, err: %v", i, err)
 		}
 	}
 }
@@ -1991,7 +1991,7 @@ func testSideImport(t *testing.T, numCanonBlocksInSidechain, blocksBetweenCommon
 	}
 
 	lastPrunedIndex := len(blocks) - TestTriesInMemory - 1
-	lastPrunedBlock := blocks[lastPrunedIndex]
+	lastPrunedBlock := blocks[lastPrunedIndex-1]
 	firstNonPrunedBlock := blocks[len(blocks)-TestTriesInMemory]
 
 	// Verify pruning of lastPrunedBlock
@@ -2863,7 +2863,7 @@ func TestSideImportPrunedBlocks(t *testing.T) {
 	}
 
 	lastPrunedIndex := len(blocks) - TestTriesInMemory - 1
-	lastPrunedBlock := blocks[lastPrunedIndex]
+	lastPrunedBlock := blocks[lastPrunedIndex-1]
 
 	// Verify pruning of lastPrunedBlock
 	if chain.HasBlockAndState(lastPrunedBlock.Hash(), lastPrunedBlock.NumberU64()) {

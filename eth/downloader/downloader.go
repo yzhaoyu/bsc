@@ -43,6 +43,20 @@ var (
 	MaxHeaderFetch  = 192 // Amount of block headers to be fetched per retrieval request
 	MaxSkeletonSize = 128 // Number of header fetches to need for a skeleton assembly
 	MaxReceiptFetch = 256 // Amount of transaction receipts to allow fetching per request
+	MaxStateFetch   = 384 // Amount of node state values to allow fetching per request
+
+	rttMinEstimate   = 2 * time.Second  // Minimum round-trip time to target for download requests
+	rttMaxEstimate   = 20 * time.Second // Maximum round-trip time to target for download requests
+	rttMinConfidence = 0.1              // Worse confidence factor in our estimated RTT value
+	ttlScaling       = 3                // Constant scaling factor for RTT -> TTL conversion
+	ttlLimit         = time.Minute      // Maximum TTL allowance to prevent reaching crazy timeouts
+
+	diffFetchTick  = 10 * time.Millisecond
+	diffFetchLimit = 5
+
+	qosTuningPeers   = 5    // Number of peers to tune based on (best peers)
+	qosConfidenceCap = 10   // Number of peers above which not to modify RTT confidence
+	qosTuningImpact  = 0.25 // Impact that a new tuning target has on the previous value
 
 	maxQueuedHeaders            = 32 * 1024                         // [eth/62] Maximum number of headers to queue for import (DOS protection)
 	maxHeadersProcess           = 2048                              // Number of header download results to import at once into the chain
@@ -141,10 +155,10 @@ type Downloader struct {
 	quitLock sync.Mutex    // Lock to prevent double closes
 
 	// Testing hooks
-	syncInitHook     func(uint64, uint64)  // Method to call upon initiating a new sync run
-	bodyFetchHook    func([]*types.Header) // Method to call upon starting a block body fetch
-	receiptFetchHook func([]*types.Header) // Method to call upon starting a receipt fetch
-	chainInsertHook  func([]*fetchResult)  // Method to call upon inserting a chain of blocks (possibly in multiple invocations)
+	syncInitHook     func(uint64, uint64)                // Method to call upon initiating a new sync run
+	bodyFetchHook    func([]*types.Header)               // Method to call upon starting a block body fetch
+	receiptFetchHook func([]*types.Header)               // Method to call upon starting a receipt fetch
+	chainInsertHook  func([]*fetchResult, chan struct{}) // Method to call upon inserting a chain of blocks (possibly in multiple invocations)
 }
 
 // LightChain encapsulates functions required to synchronise a light chain.
@@ -200,8 +214,53 @@ type BlockChain interface {
 	Snapshots() *snapshot.Tree
 }
 
+type DownloadOption func(downloader *Downloader) *Downloader
+
+type IDiffPeer interface {
+	RequestDiffLayers([]common.Hash) error
+}
+
+type IPeerSet interface {
+	GetDiffPeer(string) IDiffPeer
+}
+
+func EnableDiffFetchOp(peers IPeerSet) DownloadOption {
+	return func(dl *Downloader) *Downloader {
+		var hook = func(results []*fetchResult, stop chan struct{}) {
+			if dl.getMode() == FullSync {
+				go func() {
+					ticker := time.NewTicker(diffFetchTick)
+					defer ticker.Stop()
+					for _, r := range results {
+					Wait:
+						for {
+							select {
+							case <-stop:
+								return
+							case <-ticker.C:
+								if dl.blockchain.CurrentHeader().Number.Int64()+int64(diffFetchLimit) > r.Header.Number.Int64() {
+									break Wait
+								}
+							}
+						}
+						if ep := peers.GetDiffPeer(r.pid); ep != nil {
+							// It turns out a diff layer is 5x larger than block, we just request one diffLayer each time
+							err := ep.RequestDiffLayers([]common.Hash{r.Header.Hash()})
+							if err != nil {
+								return
+							}
+						}
+					}
+				}()
+			}
+		}
+		dl.chainInsertHook = hook
+		return dl
+	}
+}
+
 // New creates a new downloader to fetch hashes and blocks from remote peers.
-func New(checkpoint uint64, stateDb ethdb.Database, mux *event.TypeMux, chain BlockChain, lightchain LightChain, dropPeer peerDropFn) *Downloader {
+func New(checkpoint uint64, stateDb ethdb.Database, mux *event.TypeMux, chain BlockChain, lightchain LightChain, dropPeer peerDropFn, options ...DownloadOption) *Downloader {
 	if lightchain == nil {
 		lightchain = chain
 	}
@@ -218,6 +277,11 @@ func New(checkpoint uint64, stateDb ethdb.Database, mux *event.TypeMux, chain Bl
 		quitCh:         make(chan struct{}),
 		SnapSyncer:     snap.NewSyncer(stateDb),
 		stateSyncStart: make(chan *stateSync),
+	}
+	for _, option := range options {
+		if dl != nil {
+			dl = option(dl)
+		}
 	}
 	go dl.stateFetcher()
 	return dl
@@ -876,6 +940,10 @@ func (d *Downloader) findAncestorBinarySearch(p *peerConnection, mode SyncMode, 
 			continue
 		}
 		header := d.lightchain.GetHeaderByHash(h) // Independent of sync mode, header surely exists
+		if header == nil {
+			p.log.Error("header not found", "hash", h, "request", check)
+			return 0, fmt.Errorf("%w: header no found (%s)", errBadPeer, h)
+		}
 		if header.Number.Uint64() != check {
 			p.log.Warn("Received non requested header", "number", header.Number, "hash", header.Hash(), "request", check)
 			return 0, fmt.Errorf("%w: non-requested header (%d)", errBadPeer, header.Number)
@@ -1348,12 +1416,15 @@ func (d *Downloader) processFullSyncContent() error {
 		if len(results) == 0 {
 			return nil
 		}
+		stop := make(chan struct{})
 		if d.chainInsertHook != nil {
-			d.chainInsertHook(results)
+			d.chainInsertHook(results, stop)
 		}
 		if err := d.importBlockResults(results); err != nil {
+			close(stop)
 			return err
 		}
+		close(stop)
 	}
 }
 
@@ -1442,7 +1513,7 @@ func (d *Downloader) processSnapSyncContent() error {
 			}
 		}
 		if d.chainInsertHook != nil {
-			d.chainInsertHook(results)
+			d.chainInsertHook(results, nil)
 		}
 		// If we haven't downloaded the pivot block yet, check pivot staleness
 		// notifications from the header downloader
