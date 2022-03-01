@@ -434,9 +434,9 @@ func TestSnaphots(t *testing.T) {
 func TestReadStateDuringFlattening(t *testing.T) {
 	// setAccount is a helper to construct a random account entry and assign it to
 	// an account slot in a snapshot
-	setAccount := func(accKey string) map[common.Hash][]byte {
-		return map[common.Hash][]byte{
-			common.HexToHash(accKey): randomAccount(),
+	setAccount := func(accKey string) map[common.Address][]byte {
+		return map[common.Address][]byte{
+			common.HexToAddress(accKey): randomAccount(),
 		}
 	}
 	// Create a starting base layer and a snapshot tree out of it
@@ -451,9 +451,9 @@ func TestReadStateDuringFlattening(t *testing.T) {
 		},
 	}
 	// 4 layers in total, 3 diff layers and 1 disk layers
-	snaps.Update(common.HexToHash("0xa1"), common.HexToHash("0x01"), nil, setAccount("0xa1"), nil)
-	snaps.Update(common.HexToHash("0xa2"), common.HexToHash("0xa1"), nil, setAccount("0xa2"), nil)
-	snaps.Update(common.HexToHash("0xa3"), common.HexToHash("0xa2"), nil, setAccount("0xa3"), nil)
+	snaps.Update(common.HexToHash("0xa1"), common.HexToHash("0x01"), nil, setAccount("0xa1"), nil, nil)
+	snaps.Update(common.HexToHash("0xa2"), common.HexToHash("0xa1"), nil, setAccount("0xa2"), nil, nil)
+	snaps.Update(common.HexToHash("0xa3"), common.HexToHash("0xa2"), nil, setAccount("0xa3"), nil, nil)
 
 	// Obtain the topmost snapshot handler for state accessing
 	snap := snaps.Snapshot(common.HexToHash("0xa3"))

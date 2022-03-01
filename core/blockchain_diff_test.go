@@ -316,7 +316,7 @@ func TestProcessDiffLayer(t *testing.T) {
 			}
 			lightBackend.Chain().HandleDiffLayer(diff, "testpid", true)
 		}
-		_, err := lightBackend.chain.insertChain([]*types.Block{block}, true)
+		_, err := lightBackend.chain.insertChain([]*types.Block{block}, true, true)
 		if err != nil {
 			t.Errorf("failed to insert block %v", err)
 		}
@@ -340,7 +340,7 @@ func TestProcessDiffLayer(t *testing.T) {
 
 	lightBackend.Chain().HandleDiffLayer(diff, "testpid", true)
 
-	_, err := lightBackend.chain.insertChain([]*types.Block{nextBlock}, true)
+	_, err := lightBackend.chain.insertChain([]*types.Block{nextBlock}, true, true)
 	if err != nil {
 		t.Errorf("failed to process block %v", err)
 	}
@@ -424,7 +424,7 @@ func TestPruneDiffLayer(t *testing.T) {
 		b := anotherFullBackend.chain.GetBlockByNumber(uint64(i))
 		blocks = append(blocks, b)
 	}
-	fullBackend.chain.insertChain(blocks, true)
+	fullBackend.chain.insertChain(blocks, true, true)
 	fullBackend.chain.pruneDiffLayer()
 	if len(fullBackend.chain.diffNumToBlockHashes) != 0 {
 		t.Error("unexpected size of diffNumToBlockHashes")
