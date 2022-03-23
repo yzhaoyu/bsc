@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -91,6 +92,7 @@ func newTestBackendWithGenerator(blocks int) *testBackend {
 		Network:    1,
 		Sync:       downloader.FullSync,
 		BloomCache: 1,
+		Merger:     consensus.NewMerger(rawdb.NewMemoryDatabase()),
 	})
 	handler.Start(100)
 
