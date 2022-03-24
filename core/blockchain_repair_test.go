@@ -1905,6 +1905,7 @@ func TestIssue23496(t *testing.T) {
 		config  = &CacheConfig{
 			TrieCleanLimit: 256,
 			TrieDirtyLimit: 256,
+			TriesInMemory:  128,
 			TrieTimeLimit:  5 * time.Minute,
 			SnapshotLimit:  256,
 			SnapshotWait:   true,
