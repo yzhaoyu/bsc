@@ -500,7 +500,6 @@ func TestEqualForkHeaders(t *testing.T) { testEqualFork(t, false, false) }
 func TestEqualForkBlocks(t *testing.T) {
 	testEqualFork(t, true, true)
 	testEqualFork(t, true, false)
-
 }
 
 func testEqualFork(t *testing.T, full, pipeline bool) {
@@ -689,7 +688,6 @@ func TestBadHeaderHashes(t *testing.T) { testBadHashes(t, false, false) }
 func TestBadBlockHashes(t *testing.T) {
 	testBadHashes(t, true, true)
 	testBadHashes(t, true, false)
-
 }
 
 func testBadHashes(t *testing.T, full, pipeline bool) {
@@ -727,7 +725,6 @@ func TestReorgBadHeaderHashes(t *testing.T) { testReorgBadHashes(t, false, false
 func TestReorgBadBlockHashes(t *testing.T) {
 	testReorgBadHashes(t, true, false)
 	testReorgBadHashes(t, true, true)
-
 }
 
 func testReorgBadHashes(t *testing.T, full, pipeline bool) {

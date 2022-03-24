@@ -50,7 +50,7 @@ func InitDatabaseFromFreezer(db ethdb.Database) {
 		// We read 100K hashes at a time, for a total of 3.2M
 		count := uint64(100_000)
 		if i+count > frozen+offset {
-			count = frozen+offset - i
+			count = frozen + offset - i
 		}
 		data, err := db.AncientRange(freezerHashTable, i, count, 32*count)
 		if err != nil {
