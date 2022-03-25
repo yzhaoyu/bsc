@@ -223,12 +223,13 @@ type Config struct {
 
 // CreateConsensusEngine creates a consensus engine for the given chain configuration.
 func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, config *ethash.Config, notify []string, noverify bool, db ethdb.Database, ee *ethapi.PublicBlockChainAPI, genesisHash common.Hash) consensus.Engine {
+	if chainConfig.Parlia != nil {
+		return parlia.New(chainConfig, db, ee, genesisHash)
+	}
 	// If proof-of-authority is requested, set it up
 	var engine consensus.Engine
 	if chainConfig.Clique != nil {
 		engine = clique.New(chainConfig.Clique, db)
-	} else if chainConfig.Parlia != nil {
-		engine = parlia.New(chainConfig, db, ee, genesisHash)
 	} else {
 		switch config.PowMode {
 		case ethash.ModeFake:
