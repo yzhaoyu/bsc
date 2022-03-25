@@ -1196,7 +1196,7 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 				w.unconfirmed.Shift(block.NumberU64() - 1)
 				log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
 					"uncles", len(env.uncles), "txs", env.tcount,
-					"gas", block.GasUsed(), "fees", totalFees(block, env.receipts),
+					"gas", block.GasUsed(),
 					"elapsed", common.PrettyDuration(time.Since(start)))
 
 			case <-w.exitCh:
