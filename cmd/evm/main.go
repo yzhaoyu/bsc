@@ -129,11 +129,6 @@ var (
 		Name:  "noreturndata",
 		Usage: "enable return data output",
 	}
-	EVMInterpreterFlag = cli.StringFlag{
-		Name:  "vm.evm",
-		Usage: "External EVM configuration (default = built-in interpreter)",
-		Value: "",
-	}
 )
 
 var stateTransitionCommand = cli.Command{

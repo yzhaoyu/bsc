@@ -92,7 +92,7 @@ func Transition(ctx *cli.Context) error {
 	var (
 		err     error
 		tracer  vm.EVMLogger
-		baseDir = ""
+		baseDir string
 	)
 	var getTracer func(txIndex int, txHash common.Hash) (vm.EVMLogger, error)
 

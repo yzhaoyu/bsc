@@ -2068,7 +2068,7 @@ func testSideImport(t *testing.T, numCanonBlocksInSidechain, blocksBetweenCommon
 		genesis, _ = gspec.Commit(db)
 	)
 	// Generate and import the canonical chain
-	blocks, _ := GenerateChain(params.TestChainConfig, genesis, genEngine, db, 2*TestTriesInMemory, nil)
+	GenerateChain(params.TestChainConfig, genesis, genEngine, db, 2*TestTriesInMemory, nil)
 	diskdb := rawdb.NewMemoryDatabase()
 	gspec.MustCommit(diskdb)
 	chain, err := NewBlockChain(diskdb, nil, &chainConfig, runEngine, vm.Config{}, nil, nil)
@@ -2083,7 +2083,7 @@ func testSideImport(t *testing.T, numCanonBlocksInSidechain, blocksBetweenCommon
 		// Set the terminal total difficulty in the config
 		gspec.Config.TerminalTotalDifficulty = big.NewInt(0)
 	}
-	blocks, _ = GenerateChain(&chainConfig, genesis, genEngine, db, 2*TestTriesInMemory, func(i int, gen *BlockGen) {
+	blocks, _ := GenerateChain(&chainConfig, genesis, genEngine, db, 2*TestTriesInMemory, func(i int, gen *BlockGen) {
 		tx, err := types.SignTx(types.NewTransaction(nonce, common.HexToAddress("deadbeef"), big.NewInt(100), 21000, big.NewInt(int64(i+1)*params.GWei), nil), signer, key)
 		if err != nil {
 			t.Fatalf("failed to create tx: %v", err)
