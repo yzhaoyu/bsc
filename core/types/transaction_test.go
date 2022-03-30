@@ -429,9 +429,8 @@ func TestTransactionForward(t *testing.T) {
 
 	}
 	// Sort the transactions
-	txset := NewTransactionsByPriceAndNonce(signer, groups)
+	txset := NewTransactionsByPriceAndNonce(signer, groups, common.Big0)
 	txsetCpy := txset.Copy()
-
 	txs := Transactions{}
 	for tx := txsetCpy.Peek(); tx != nil; tx = txsetCpy.Peek() {
 		txs = append(txs, tx)
