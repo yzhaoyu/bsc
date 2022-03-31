@@ -207,8 +207,9 @@ func (s *StateObject) getOriginStorage(key common.Hash) (common.Hash, bool) {
 		if !ok {
 			return common.Hash{}, false
 		}
-		s.originStorage[key] = val.(common.Hash)
-		return val.(common.Hash), true
+		storage := val.(common.Hash)
+		s.originStorage[key] = storage
+		return storage, true
 	}
 	return common.Hash{}, false
 }
