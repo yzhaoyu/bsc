@@ -879,11 +879,11 @@ func (w *worker) commitTransactions(env *environment, txs *types.TransactionsByP
 
 	interruptCh := make(chan struct{})
 	defer close(interruptCh)
-	tx := &types.Transaction{}
-	txCurr := &tx
 	//prefetch txs from all pending txs
 	txsPrefetch := txs.Copy()
-	w.prefetcher.PrefetchMining(txsPrefetch, env.header, env.gasPool.Gas(), env.state.Copy(), *w.chain.GetVMConfig(), interruptCh, txCurr)
+	tx := txsPrefetch.Peek()
+	txCurr := &tx
+	w.prefetcher.PrefetchMining(txsPrefetch, w.current.header, w.current.gasPool.Gas(), w.current.state.Copy(), *w.chain.GetVMConfig(), interruptCh, txCurr)
 
 LOOP:
 	for {
