@@ -2,6 +2,7 @@ package trust
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/log"
 	"time"
 
 	"github.com/ethereum/go-ethereum/core"
@@ -127,6 +128,7 @@ func handleRootRequest(backend Backend, msg Decoder, peer *Peer) error {
 	}
 
 	res := backend.Chain().GetRootByDiffHash(req.BlockNumber, req.BlockHash, req.DiffHash)
+	log.Info("verify node send response", "hash", req.BlockHash, "number", req.BlockNumber)
 	return p2p.Send(peer.rw, RespondRootMsg, RootResponsePacket{
 		RequestId:   req.RequestId,
 		Status:      res.Status,

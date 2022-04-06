@@ -57,6 +57,7 @@ func (p *Peer) RequestRoot(blockNumber uint64, blockHash common.Hash, diffHash c
 	id := rand.Uint64()
 
 	requestTracker.Track(p.id, p.version, RequestRootMsg, RespondRootMsg, id)
+	log.Info("send verify request", "hash", blockHash, "number", blockNumber)
 	return p2p.Send(p.rw, RequestRootMsg, RootRequestPacket{
 		RequestId:   id,
 		BlockNumber: blockNumber,
