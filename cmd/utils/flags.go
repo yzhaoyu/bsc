@@ -275,7 +275,7 @@ var (
 	defaultVerifyMode = ethconfig.Defaults.TriesVerifyMode
 	TriesVerifyModeFlag = TextMarshalerFlag{
 		Name: "tries-verify-mode",
-		Usage: `tries verify mode: "local", "full", "insecure", "none"`,
+		Usage: `tries verify mode: "local", "full", "insecure", "none". Different verify mode represents that state root is verified in different way. local: verified by MPT of local node; full: verified by remote peers which have diff layers. insecure: verified by remote peers which don't have diff layers. none: don't verify state root'"`,
 		Value: &defaultVerifyMode,
 	}
 	OverrideBerlinFlag = cli.Uint64Flag{
