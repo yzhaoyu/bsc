@@ -171,12 +171,92 @@ func createInsertKvPair() KvPair{
 	return KvPair{randomBytes(32), randomBytes(50), false}
 }
 
+func TestCompareSubroot(t *testing.T) {
+	println("key===", keybytesToHex([]byte("kdjgglesworth")))
+	keybytesToHex([]byte("kdjgglesworth"))
+	// 1. Preparation to insert batch kv, with one memory db
+	// create batch
+	batch := []KvPair{}
+	// Create 4096 kv pair to insert
+	for i:=0; i<4096; i++ {
+		// batch[i] = createInsertKvPair()
+		batch = append(batch, createInsertKvPair())
+	}
+    // create batch for batch update
+	new_batch := []KvPair{}
+	for i:=0; i<len(batch); i++ {
+		new_batch = append(new_batch, KvPair{keybytesToHex(batch[i].key), batch[i].val, false})
+	}
+	t.Logf("batch size ==: %d", len(batch))
+
+	// with persist data preparation for both
+	diskdb := memorydb.New()
+	triedb := NewDatabase(diskdb)
+	trie, _ := New(common.Hash{}, triedb)
+
+	newStartTime := time.Now()
+	updateStringBatchWithHexKey(trie, &new_batch)
+	newTc := time.Since(newStartTime)
+	t.Logf("newTc = %v", newTc)
+
+	exp, _ := trie.Commit(nil)
+	exp = trie.Hash()
+	t.Logf("trie1_root ==: %x", exp)
+
+	trie2, _ := New(exp, triedb)
+	root := trie2.Hash()
+	t.Logf("tri2_root ==: %x", root)
+
+	if root != exp {
+		t.Errorf("case 1: exp %x got %x", exp, root)
+	}
+}
+
 func TestCompareInsertPerformance(t *testing.T) {
+	old_size := 409600
+
+	// original batch
+	orig_batch := []KvPair{}
+	// Create 4096 kv pair to insert
+	for i:=0; i<old_size; i++ {
+		// batch[i] = createInsertKvPair()
+		orig_batch = append(orig_batch, createInsertKvPair())
+	}
+	// with persist data preparation for both
+	diskdb1 := memorydb.New()
+	triedb1 := NewDatabase(diskdb1)
+
+	trie1, _ := New(common.Hash{}, triedb1)
+	updateString(trie1, "120000", "qwerqwerqwerqwerqwerqwerqwerqwer")
+	updateString(trie1, "123456", "asdfasdfasdfasdfasdfasdfasdfasdf")
+	for i:=0; i<old_size; i++ {
+		//for i:=0; i<4096; i++ {
+		updateString(trie1, string(orig_batch[i].key), string(orig_batch[i].val))
+	}
+	root1, _ := trie1.Commit(nil)
+
+	diskdb2 := memorydb.New()
+	triedb2 := NewDatabase(diskdb2)
+
+	trie2, _ := New(common.Hash{}, triedb2)
+	updateString(trie2, "120000", "qwerqwerqwerqwerqwerqwerqwerqwer")
+	updateString(trie2, "123456", "asdfasdfasdfasdfasdfasdfasdfasdf")
+	for i:=0; i<old_size; i++ {
+		//for i:=0; i<4096; i++ {
+		updateString(trie2, string(orig_batch[i].key), string(orig_batch[i].val))
+	}
+	root2, _ := trie2.Commit(nil)
+
+	if root1 != root2 {
+		t.Errorf("case 1: root1 %x root2 %x", root1, root2)
+	}
+	t.Logf("The same root ==: %x", root1)
+
     // Create 4196 kv pair batch
     // includes 4096 to insert, 100 to delete
     old_batch := []KvPair{}
     // Create 4096 kv pair to insert
-    for i:=0; i<4096; i++ {
+    for i:=0; i<old_size; i++ {
     	// batch[i] = createInsertKvPair()
     	old_batch = append(old_batch, createInsertKvPair())
 	}
@@ -196,11 +276,12 @@ func TestCompareInsertPerformance(t *testing.T) {
 	t.Logf("batch size ==: %d", len(old_batch))
 
     // Single insert&del test
-    trie := newEmpty()
+    //trie := newEmpty()
+	trie, _ := New(root1, triedb1)
 
     oldStartTime := time.Now()
     // 1. insert
-    for i:=0; i<4096; i++ {
+    for i:=0; i<len(old_batch); i++ {
 		//for i:=0; i<4096; i++ {
     	updateString(trie, string(old_batch[i].key), string(old_batch[i].val))
 	}
@@ -220,13 +301,15 @@ func TestCompareInsertPerformance(t *testing.T) {
 	//fmt.Println("rootnode ==:", trie.root)
 
 	// Batch test
-    trie = newEmpty()
+	// trie_new := newEmpty()
+    trie_new, _ := New(root1, triedb2)
+	t.Logf("Open new trie with root: %x", root1)
     newStartTime := time.Now()
-	updateStringBatchWithHexKey(trie, &new_batch)
+	updateStringBatchWithHexKey(trie_new, &new_batch)
     newTc := time.Since(newStartTime)
     t.Logf("newTc = %v", newTc)
 
-	root := trie.Hash()
+	root := trie_new.Hash()
 	t.Logf("newroot ==: %x", root)
 	// trie.UpdateShardInfo()
 	//fmt.Println("newrootnode ==:", trie.root)
