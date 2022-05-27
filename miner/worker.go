@@ -24,6 +24,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/perf"
+
 	mapset "github.com/deckarep/golang-set"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -462,7 +464,9 @@ func (w *worker) mainLoop() {
 	for {
 		select {
 		case req := <-w.newWorkCh:
+			startNewWork := time.Now()
 			w.commitNewWork(req.interrupt, req.noempty, req.timestamp)
+			perf.RecordMPMetrics(perf.MpImportingTotal, startNewWork)
 
 		case ev := <-w.chainSideCh:
 			// Short circuit for duplicate side blocks
@@ -787,6 +791,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	tx := txsPrefetch.Peek()
 	txCurr := &tx
 	w.prefetcher.PrefetchMining(txsPrefetch, w.current.header, w.current.gasPool.Gas(), w.current.state.Copy(), *w.chain.GetVMConfig(), interruptCh, txCurr)
+	startProcess := time.Now()
 
 LOOP:
 	for {
@@ -878,6 +883,7 @@ LOOP:
 			txs.Shift()
 		}
 	}
+	perf.RecordMPMetrics(perf.MpImportingProcess, startProcess)
 	bloomProcessors.Close()
 
 	if !w.isRunning() && len(coalescedLogs) > 0 {
@@ -991,9 +997,15 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		}
 		if len(remoteTxs) > 0 {
 			txs := types.NewTransactionsByPriceAndNonce(w.current.signer, remoteTxs)
-			if w.commitTransactions(txs, w.coinbase, interrupt) {
+			startCommit := time.Now()
+			succeed := w.commitTransactions(txs, w.coinbase, interrupt)
+			perf.RecordMPMetrics(perf.MpMiningCommitTx, startCommit)
+			if succeed {
 				return
 			}
+			//if w.commitTransactions(txs, w.coinbase, interrupt) {
+			//	return
+			//}
 		}
 		commitTxsTimer.UpdateSince(start)
 		log.Info("Gas pool", "height", header.Number.String(), "pool", w.current.gasPool.String())
@@ -1009,7 +1021,9 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 	if err != nil {
 		return err
 	}
+	startFinalize := time.Now()
 	block, receipts, err := w.engine.FinalizeAndAssemble(w.chain, types.CopyHeader(w.current.header), s, w.current.txs, uncles, w.current.receipts)
+	perf.RecordMPMetrics(perf.MpMiningFinalize, startFinalize)
 	if err != nil {
 		return err
 	}
