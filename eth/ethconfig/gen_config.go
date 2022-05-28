@@ -24,8 +24,15 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		DisablePeerTxBroadcast          bool
 		EthDiscoveryURLs                []string
 		SnapDiscoveryURLs               []string
+		TrustDiscoveryURLs              []string
 		NoPruning                       bool
 		NoPrefetch                      bool
+		DirectBroadcast                 bool
+		DisableSnapProtocol             bool
+		DisableDiffProtocol             bool
+		EnableTrustProtocol             bool
+		DiffSync                        bool
+		RangeLimit                      bool
 		TxLookupLimit                   uint64                 `toml:",omitempty"`
 		Whitelist                       map[uint64]common.Hash `toml:"-"`
 		LightServ                       int                    `toml:",omitempty"`
@@ -43,18 +50,19 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		DatabaseCache                   int
 		DatabaseFreezer                 string
 		DatabaseDiff                    string
+		PersistDiff                     bool
+		DiffBlock                       uint64
 		TrieCleanCache                  int
 		TrieCleanCacheJournal           string        `toml:",omitempty"`
 		TrieCleanCacheRejournal         time.Duration `toml:",omitempty"`
 		TrieDirtyCache                  int
 		TrieTimeout                     time.Duration
-		TriesInMemory                   uint64 `toml:",omitempty"`
 		SnapshotCache                   int
+		TriesInMemory                   uint64
+		TriesVerifyMode                 core.VerifyMode
 		Preimages                       bool
-		PersistDiff                     bool
-		DiffBlock                       uint64 `toml:",omitempty"`
 		Miner                           miner.Config
-		Ethash                          ethash.Config
+		Ethash                          ethash.Config `toml:",omitempty"`
 		TxPool                          core.TxPoolConfig
 		GPO                             gasprice.Config
 		EnablePreimageRecording         bool
@@ -74,7 +82,14 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.DisablePeerTxBroadcast = c.DisablePeerTxBroadcast
 	enc.EthDiscoveryURLs = c.EthDiscoveryURLs
 	enc.SnapDiscoveryURLs = c.SnapDiscoveryURLs
+	enc.TrustDiscoveryURLs = c.TrustDiscoveryURLs
 	enc.NoPruning = c.NoPruning
+	enc.DirectBroadcast = c.DirectBroadcast
+	enc.DisableSnapProtocol = c.DisableSnapProtocol
+	enc.DisableDiffProtocol = c.DisableDiffProtocol
+	enc.EnableTrustProtocol = c.EnableTrustProtocol
+	enc.DiffSync = c.DiffSync
+	enc.RangeLimit = c.RangeLimit
 	enc.TxLookupLimit = c.TxLookupLimit
 	enc.Whitelist = c.Whitelist
 	enc.LightServ = c.LightServ
@@ -92,16 +107,17 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.DatabaseCache = c.DatabaseCache
 	enc.DatabaseFreezer = c.DatabaseFreezer
 	enc.DatabaseDiff = c.DatabaseDiff
+	enc.PersistDiff = c.PersistDiff
+	enc.DiffBlock = c.DiffBlock
 	enc.TrieCleanCache = c.TrieCleanCache
 	enc.TrieCleanCacheJournal = c.TrieCleanCacheJournal
 	enc.TrieCleanCacheRejournal = c.TrieCleanCacheRejournal
 	enc.TrieDirtyCache = c.TrieDirtyCache
 	enc.TrieTimeout = c.TrieTimeout
-	enc.TriesInMemory = c.TriesInMemory
 	enc.SnapshotCache = c.SnapshotCache
+	enc.TriesInMemory = c.TriesInMemory
+	enc.TriesVerifyMode = c.TriesVerifyMode
 	enc.Preimages = c.Preimages
-	enc.PersistDiff = c.PersistDiff
-	enc.DiffBlock = c.DiffBlock
 	enc.Miner = c.Miner
 	enc.Ethash = c.Ethash
 	enc.TxPool = c.TxPool
@@ -127,8 +143,15 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		DisablePeerTxBroadcast          *bool
 		EthDiscoveryURLs                []string
 		SnapDiscoveryURLs               []string
+		TrustDiscoveryURLs              []string
 		NoPruning                       *bool
 		NoPrefetch                      *bool
+		DirectBroadcast                 *bool
+		DisableSnapProtocol             *bool
+		DisableDiffProtocol             *bool
+		EnableTrustProtocol             *bool
+		DiffSync                        *bool
+		RangeLimit                      *bool
 		TxLookupLimit                   *uint64                `toml:",omitempty"`
 		Whitelist                       map[uint64]common.Hash `toml:"-"`
 		LightServ                       *int                   `toml:",omitempty"`
@@ -147,17 +170,18 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		DatabaseFreezer                 *string
 		DatabaseDiff                    *string
 		PersistDiff                     *bool
-		DiffBlock                       *uint64 `toml:",omitempty"`
+		DiffBlock                       *uint64
 		TrieCleanCache                  *int
 		TrieCleanCacheJournal           *string        `toml:",omitempty"`
 		TrieCleanCacheRejournal         *time.Duration `toml:",omitempty"`
 		TrieDirtyCache                  *int
 		TrieTimeout                     *time.Duration
-		TriesInMemory                   *uint64 `toml:",omitempty"`
 		SnapshotCache                   *int
+		TriesInMemory                   *uint64
+		TriesVerifyMode                 *core.VerifyMode
 		Preimages                       *bool
 		Miner                           *miner.Config
-		Ethash                          *ethash.Config
+		Ethash                          *ethash.Config `toml:",omitempty"`
 		TxPool                          *core.TxPoolConfig
 		GPO                             *gasprice.Config
 		EnablePreimageRecording         *bool
@@ -192,8 +216,29 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.SnapDiscoveryURLs != nil {
 		c.SnapDiscoveryURLs = dec.SnapDiscoveryURLs
 	}
+	if dec.TrustDiscoveryURLs != nil {
+		c.TrustDiscoveryURLs = dec.TrustDiscoveryURLs
+	}
 	if dec.NoPruning != nil {
 		c.NoPruning = *dec.NoPruning
+	}
+	if dec.DirectBroadcast != nil {
+		c.DirectBroadcast = *dec.DirectBroadcast
+	}
+	if dec.DisableSnapProtocol != nil {
+		c.DisableSnapProtocol = *dec.DisableSnapProtocol
+	}
+	if dec.DisableDiffProtocol != nil {
+		c.DisableDiffProtocol = *dec.DisableDiffProtocol
+	}
+	if dec.EnableTrustProtocol != nil {
+		c.EnableTrustProtocol = *dec.EnableTrustProtocol
+	}
+	if dec.DiffSync != nil {
+		c.DiffSync = *dec.DiffSync
+	}
+	if dec.RangeLimit != nil {
+		c.RangeLimit = *dec.RangeLimit
 	}
 	if dec.TxLookupLimit != nil {
 		c.TxLookupLimit = *dec.TxLookupLimit
@@ -267,11 +312,14 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.TrieTimeout != nil {
 		c.TrieTimeout = *dec.TrieTimeout
 	}
+	if dec.SnapshotCache != nil {
+		c.SnapshotCache = *dec.SnapshotCache
+	}
 	if dec.TriesInMemory != nil {
 		c.TriesInMemory = *dec.TriesInMemory
 	}
-	if dec.SnapshotCache != nil {
-		c.SnapshotCache = *dec.SnapshotCache
+	if dec.TriesVerifyMode != nil {
+		c.TriesVerifyMode = *dec.TriesVerifyMode
 	}
 	if dec.Preimages != nil {
 		c.Preimages = *dec.Preimages

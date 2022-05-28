@@ -264,6 +264,9 @@ func (bc *BlockChain) HasState(hash common.Hash) bool {
 			return true
 		}
 	}
+	if bc.stateCache.NoTries() {
+		return bc.snaps != nil && bc.snaps.Snapshot(hash) != nil
+	}
 	_, err := bc.stateCache.OpenTrie(hash)
 	return err == nil
 }
@@ -275,6 +278,9 @@ func (bc *BlockChain) HasBlockAndState(hash common.Hash, number uint64) bool {
 	block := bc.GetBlock(hash, number)
 	if block == nil {
 		return false
+	}
+	if bc.stateCache.NoTries() {
+		return bc.snaps != nil && bc.snaps.Snapshot(block.Root()) != nil
 	}
 	return bc.HasState(block.Root())
 }
@@ -374,6 +380,10 @@ func (bc *BlockChain) SubscribeChainEvent(ch chan<- ChainEvent) event.Subscripti
 // SubscribeChainHeadEvent registers a subscription of ChainHeadEvent.
 func (bc *BlockChain) SubscribeChainHeadEvent(ch chan<- ChainHeadEvent) event.Subscription {
 	return bc.scope.Track(bc.chainHeadFeed.Subscribe(ch))
+}
+
+func (bc *BlockChain) SubscribeChainBlockEvent(ch chan<- ChainHeadEvent) event.Subscription {
+	return bc.scope.Track(bc.chainBlockFeed.Subscribe(ch))
 }
 
 // SubscribeChainSideEvent registers a subscription of ChainSideEvent.
