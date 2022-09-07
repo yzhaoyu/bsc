@@ -652,6 +652,7 @@ func (s *PublicBlockChainAPI) GetBalance(ctx context.Context, address common.Add
 // GetDiffLayer get diff layer data by block number
 func (s *PublicBlockChainAPI) GetDiffLayer(ctx context.Context, blockNumber rpc.BlockNumber) (
 	*types.DiffLayer, error) {
+	log.Info("GetDiffLayer 00000")
 	return s.b.GetSpecificDiffLayer(ctx, blockNumber)
 }
 
