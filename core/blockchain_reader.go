@@ -173,8 +173,8 @@ func (bc *BlockChain) GetBlockByNumber(number uint64) *types.Block {
 	return bc.GetBlock(hash, number)
 }
 
-// GetBlockNumberByBlockHash get block number by block hash
-func (bc *BlockChain) GetBlockNumberByBlockHash(number uint64) common.Hash {
+// GetBlockHashByBlockNumber get block number by block hash
+func (bc *BlockChain) GetBlockHashByBlockNumber(number uint64) common.Hash {
 	hash := rawdb.ReadCanonicalHash(bc.db, number)
 	if hash == (common.Hash{}) {
 		return common.Hash{}
