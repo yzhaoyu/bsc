@@ -367,7 +367,7 @@ func (b *EthAPIBackend) StateAtTransaction(ctx context.Context, block *types.Blo
 func (b *EthAPIBackend) GetSpecificDiffLayer(ctx context.Context, blockNumber rpc.BlockNumber) (*types.DiffLayer, error) {
 	blockHash := b.eth.blockchain.GetBlockNumberByBlockHash(uint64(blockNumber))
 	if blockHash == (common.Hash{}) {
-		return nil, errors.New("blockHash is non exist")
+		return nil, errors.New("block number is non exist")
 	}
 	return b.eth.blockchain.GetTrustedDiffLayer(blockHash), nil
 }
