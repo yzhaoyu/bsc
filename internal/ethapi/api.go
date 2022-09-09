@@ -684,7 +684,7 @@ func transferDiffLayerData(diffLayer *types.DiffLayer) *StateDiff {
 		address := v.Account.String()
 		for _, j := range v.Keys {
 			for _, n := range v.Vals {
-				innerMap[j] = hexutil.Bytes(n).String()
+				innerMap[hexutil.Bytes(j).String()] = hexutil.Bytes(n).String()
 			}
 		}
 		storageMap[address] = innerMap
