@@ -650,6 +650,8 @@ func (s *PublicBlockChainAPI) GetBalance(ctx context.Context, address common.Add
 }
 
 type StateDiff struct {
+	//BlockHash   string                       `json:"blockHash"`
+	//BlockNumber uint64                       `json:"number"`
 	Accounts  map[string]string            `json:"accounts"`
 	Storage   map[string]map[string]string `json:"storage"`
 	Destructs []string                     `json:"destructs"`
@@ -672,7 +674,7 @@ func transferDiffLayerData(diffLayer *types.DiffLayer) *StateDiff {
 	accountsMap := make(map[string]string)
 	for _, v := range diffLayer.Accounts {
 		address := v.Account.String()
-		value := string(v.Blob)
+		value := hexutil.Bytes(v.Blob).String()
 		accountsMap[address] = value
 	}
 
@@ -682,7 +684,7 @@ func transferDiffLayerData(diffLayer *types.DiffLayer) *StateDiff {
 		address := v.Account.String()
 		for _, j := range v.Keys {
 			for _, n := range v.Vals {
-				innerMap[j] = string(n)
+				innerMap[j] = hexutil.Bytes(n).String()
 			}
 		}
 		storageMap[address] = innerMap
@@ -697,7 +699,7 @@ func transferDiffLayerData(diffLayer *types.DiffLayer) *StateDiff {
 	codesMap := make(map[string]string)
 	for _, v := range diffLayer.Codes {
 		hash := v.Hash.String()
-		value := string(v.Code)
+		value := hexutil.Bytes(v.Code).String()
 		codesMap[hash] = value
 	}
 
