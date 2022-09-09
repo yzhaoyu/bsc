@@ -649,11 +649,64 @@ func (s *PublicBlockChainAPI) GetBalance(ctx context.Context, address common.Add
 	return (*hexutil.Big)(state.GetBalance(address)), state.Error()
 }
 
+type StateDiff struct {
+	Accounts  map[string]string            `json:"accounts"`
+	Storage   map[string]map[string]string `json:"storage"`
+	Destructs []string                     `json:"destructs"`
+	Codes     map[string]string            `json:"codes"`
+}
+
 // GetDiffLayer get diff layer data by block number
 func (s *PublicBlockChainAPI) GetDiffLayer(ctx context.Context, blockNumber rpc.BlockNumber) (
-	*types.DiffLayer, error) {
+	*StateDiff, error) {
 	log.Info("GetDiffLayer 00000")
-	return s.b.GetSpecificDiffLayer(ctx, blockNumber)
+	diffLayer, err := s.b.GetSpecificDiffLayer(ctx, blockNumber)
+	if err != nil {
+		log.Error("invoke GetSpecificDiffLayer error", "ctx", ctx, "err", err)
+		return nil, err
+	}
+	return transferDiffLayerData(diffLayer), nil
+}
+
+func transferDiffLayerData(diffLayer *types.DiffLayer) *StateDiff {
+	accountsMap := make(map[string]string)
+	for _, v := range diffLayer.Accounts {
+		address := v.Account.String()
+		value := string(v.Blob)
+		accountsMap[address] = value
+	}
+
+	innerMap := make(map[string]string)
+	storageMap := make(map[string]map[string]string)
+	for _, v := range diffLayer.Storages {
+		address := v.Account.String()
+		for _, j := range v.Keys {
+			for _, n := range v.Vals {
+				innerMap[j] = string(n)
+			}
+		}
+		storageMap[address] = innerMap
+	}
+
+	destructsList := make([]string, 0)
+	for _, v := range diffLayer.Destructs {
+		address := v.String()
+		destructsList = append(destructsList, address)
+	}
+
+	codesMap := make(map[string]string)
+	for _, v := range diffLayer.Codes {
+		hash := v.Hash.String()
+		value := string(v.Code)
+		codesMap[hash] = value
+	}
+
+	return &StateDiff{
+		Accounts:  accountsMap,
+		Storage:   storageMap,
+		Destructs: destructsList,
+		Codes:     codesMap,
+	}
 }
 
 // Result structs for GetProof
