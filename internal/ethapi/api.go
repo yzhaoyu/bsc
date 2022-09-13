@@ -650,12 +650,12 @@ func (s *PublicBlockChainAPI) GetBalance(ctx context.Context, address common.Add
 }
 
 type StateDiff struct {
-	//BlockHash   string                       `json:"blockHash"`
-	//BlockNumber uint64                       `json:"number"`
-	Accounts  map[string]string            `json:"accounts"`
-	Storage   map[string]map[string]string `json:"storage"`
-	Destructs []string                     `json:"destructs"`
-	Codes     map[string]string            `json:"codes"`
+	BlockHash   string                       `json:"blockHash"`
+	BlockNumber uint64                       `json:"blockNumber"`
+	Accounts    map[string]string            `json:"accounts"`
+	Storage     map[string]map[string]string `json:"storage"`
+	Destructs   []string                     `json:"destructs"`
+	Codes       map[string]string            `json:"codes"`
 }
 
 // GetDiffLayer get diff layer data by block number
