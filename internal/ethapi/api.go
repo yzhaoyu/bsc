@@ -704,10 +704,12 @@ func transferDiffLayerData(diffLayer *types.DiffLayer) *StateDiff {
 	}
 
 	return &StateDiff{
-		Accounts:  accountsMap,
-		Storage:   storageMap,
-		Destructs: destructsList,
-		Codes:     codesMap,
+		BlockHash:   diffLayer.BlockHash.String(),
+		BlockNumber: diffLayer.Number,
+		Accounts:    accountsMap,
+		Storage:     storageMap,
+		Destructs:   destructsList,
+		Codes:       codesMap,
 	}
 }
 
