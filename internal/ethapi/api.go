@@ -662,11 +662,13 @@ type StateDiff struct {
 // GetDiffLayer get diff layer data by block number
 func (s *PublicBlockChainAPI) GetDiffLayer(ctx context.Context, blockNumber rpc.BlockNumber) (
 	*StateDiff, error) {
-	log.Info("GetDiffLayer 00000")
 	diffLayer, err := s.b.GetSpecificDiffLayer(ctx, blockNumber)
 	if err != nil {
 		log.Error("invoke GetSpecificDiffLayer error", "ctx", ctx, "err", err)
 		return nil, err
+	}
+	if diffLayer == nil {
+		return nil, fmt.Errorf("Diff layer is nil")
 	}
 	return transferDiffLayerData(diffLayer), nil
 }

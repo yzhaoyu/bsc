@@ -3015,11 +3015,11 @@ func (bc *BlockChain) GetTrustedDiffLayer(blockHash common.Hash) *types.DiffLaye
 	var diff *types.DiffLayer
 	if cached, ok := bc.diffLayerCache.Get(blockHash); ok {
 		diff = cached.(*types.DiffLayer)
-		log.Info("11111", "diff", diff)
 		return diff
 	}
 
 	diffStore := bc.db.DiffStore()
+	log.Info("11111", "diff", diffStore)
 	if diffStore != nil {
 		diff = rawdb.ReadDiffLayer(diffStore, blockHash)
 	}
