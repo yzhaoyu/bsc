@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strconv"
 	"strings"
 	"time"
 
@@ -651,7 +652,7 @@ func (s *PublicBlockChainAPI) GetBalance(ctx context.Context, address common.Add
 
 type StateDiff struct {
 	BlockHash   string                       `json:"blockHash"`
-	BlockNumber uint64                       `json:"blockNumber"`
+	BlockNumber string                       `json:"blockNumber"`
 	Accounts    map[string]string            `json:"accounts"`
 	Storage     map[string]map[string]string `json:"storage"`
 	Destructs   []string                     `json:"destructs"`
@@ -705,7 +706,7 @@ func transferDiffLayerData(diffLayer *types.DiffLayer) *StateDiff {
 
 	return &StateDiff{
 		BlockHash:   diffLayer.BlockHash.String(),
-		BlockNumber: diffLayer.Number,
+		BlockNumber: strconv.FormatUint(diffLayer.Number, 10),
 		Accounts:    accountsMap,
 		Storage:     storageMap,
 		Destructs:   destructsList,
