@@ -1446,16 +1446,12 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 	return nil
 }
 
-var DiffLayerData *types.DiffLayer
-
 type BlockData struct {
-	IsCanon      bool
-	Header       *types.Header
-	Uncles       []*types.Header
-	Transactions types.Transactions
-	Receipts     types.Receipts
-	StateDiff    *StateDiff
-	Size         hexutil.Uint64
+	BlockNumber uint64
+	BlockHash   common.Hash
+	Header      *types.Header
+	StateDiff1  *StateDiff
+	Size        hexutil.Uint64
 }
 
 type StateDiff struct {
@@ -1624,26 +1620,35 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	}
 	var err error
 	// Commit all cached state changes into underlying memory database.
-	_, DiffLayerData, err = state.Commit(bc.tryRewindBadBlocks, tryCommitTrieDB)
+	_, diffLayer, err := state.Commit(bc.tryRewindBadBlocks, tryCommitTrieDB)
 	if err != nil {
 		return err
 	}
 
 	// Ensure no empty block body
-	if DiffLayerData != nil && block.Header().TxHash != types.EmptyRootHash {
+	if diffLayer != nil && block.Header().TxHash != types.EmptyRootHash {
 		// Filling necessary field
-		DiffLayerData.Receipts = receipts
-		DiffLayerData.BlockHash = block.Hash()
-		DiffLayerData.Number = block.NumberU64()
+		diffLayer.Receipts = receipts
+		diffLayer.BlockHash = block.Hash()
+		diffLayer.Number = block.NumberU64()
 
 		diffLayerCh := make(chan struct{})
 		if bc.diffLayerChanCache.Len() >= diffLayerCacheLimit {
 			bc.diffLayerChanCache.RemoveOldest()
 		}
-		bc.diffLayerChanCache.Add(DiffLayerData.BlockHash, diffLayerCh)
+		bc.diffLayerChanCache.Add(diffLayer.BlockHash, diffLayerCh)
 
-		go bc.cacheDiffLayer(DiffLayerData, diffLayerCh)
+		go bc.cacheDiffLayer(diffLayer, diffLayerCh)
 	}
+
+	data := &BlockData{
+		BlockNumber: block.NumberU64(),
+		BlockHash:   block.Hash(),
+		Header:      nil,
+		StateDiff1:  NewStateDiffByDiffLayer(diffLayer),
+		Size:        hexutil.Uint64(block.Size()),
+	}
+	log.Info("sjdbuewbdew", data)
 	wg.Wait()
 	return nil
 }
