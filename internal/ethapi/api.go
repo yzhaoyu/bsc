@@ -650,18 +650,18 @@ func (s *PublicBlockChainAPI) GetBalance(ctx context.Context, address common.Add
 	return (*hexutil.Big)(state.GetBalance(address)), state.Error()
 }
 
-type StateDiff struct {
-	BlockHash   string                       `json:"blockHash"`
-	BlockNumber string                       `json:"blockNumber"`
-	Accounts    map[string]string            `json:"accounts"`
-	Storage     map[string]map[string]string `json:"storage"`
-	Destructs   []string                     `json:"destructs"`
-	Codes       map[string]string            `json:"codes"`
-}
+//type StateDiff struct {
+//	BlockHash   string                       `json:"blockHash"`
+//	BlockNumber string                       `json:"blockNumber"`
+//	Accounts    map[string]string            `json:"accounts"`
+//	Storage     map[string]map[string]string `json:"storage"`
+//	Destructs   []string                     `json:"destructs"`
+//	Codes       map[string]string            `json:"codes"`
+//}
 
 // GetDiffLayer get diff layer data by block number
 func (s *PublicBlockChainAPI) GetDiffLayer(ctx context.Context, blockNumber rpc.BlockNumber) (
-	*StateDiff, error) {
+	*NewStateDiff, error) {
 	diffLayer, err := s.b.GetSpecificDiffLayer(ctx, blockNumber)
 	if err != nil {
 		log.Error("invoke GetSpecificDiffLayer error", "ctx", ctx, "err", err)
@@ -670,9 +670,129 @@ func (s *PublicBlockChainAPI) GetDiffLayer(ctx context.Context, blockNumber rpc.
 	if diffLayer == nil {
 		return nil, fmt.Errorf("Diff layer is nil")
 	}
-	return transferDiffLayerData(diffLayer), nil
+	data := NewStateDiffByDiffLayer(diffLayer)
+	b := transferStateDiff(diffLayer.BlockHash, diffLayer.Number, data)
+	return b, nil
 }
 
+type NewStateDiff struct {
+	BlockHash   string                       `json:"blockHash"`
+	BlockNumber string                       `json:"blockNumber"`
+	Accounts    map[string]string            `json:"accounts"`
+	Storage     map[string]map[string]string `json:"storage"`
+	Destructs   []string                     `json:"destructs"`
+	Codes       map[string]string            `json:"codes"`
+}
+
+func transferStateDiff(hash common.Hash, number uint64, diff *StateDiff) *NewStateDiff {
+	accountsMap := make(map[string]string)
+	for k, v := range diff.Accounts {
+		address := k.String()
+		value := v.String()
+		accountsMap[address] = value
+	}
+
+	innerMap := make(map[string]string)
+	storageMap := make(map[string]map[string]string)
+	for k, v := range diff.Storage {
+		address := k.String()
+		for i, j := range v {
+			hash := i.String()
+			value := j.String()
+			innerMap[hash] = value
+		}
+		storageMap[address] = innerMap
+	}
+
+	destructsList := make([]string, 0)
+	for _, v := range diff.Destructs {
+		address := v.String()
+		destructsList = append(destructsList, address)
+	}
+
+	codesMap := make(map[string]string)
+	for k, v := range diff.Codes {
+		hash := k.String()
+		value := v.String()
+		codesMap[hash] = value
+	}
+
+	return &NewStateDiff{
+		BlockHash:   hash.String(),
+		BlockNumber: strconv.FormatUint(number, 10),
+		Accounts:    accountsMap,
+		Storage:     storageMap,
+		Destructs:   destructsList,
+		Codes:       codesMap,
+	}
+}
+
+type StateDiff struct {
+	Accounts map[common.Address]hexutil.Bytes `json:"accounts"`
+	// The key in address is actually type uint256.Int. Here just simply encode it as a hash bytes array common.Hash
+	// in order to help us to serialize/deserialize.
+	Storage   map[common.Address]map[common.Hash]hexutil.Bytes `json:"storage"`
+	Destructs []common.Address                                 `json:"destructs"`
+
+	Codes map[common.Hash]hexutil.Bytes `json:"codes"`
+}
+
+func NewStateDiffByDiffLayer(d *types.DiffLayer) *StateDiff {
+	if d == nil {
+		return nil
+	}
+
+	sd := &StateDiff{}
+	// Accounts
+	if d.Accounts != nil {
+		sd.Accounts = map[common.Address]hexutil.Bytes{}
+		for _, acc := range d.Accounts {
+			sd.Accounts[acc.Account] = acc.Blob
+		}
+	}
+
+	// Destructs
+	if d.Destructs != nil {
+		sd.Destructs = []common.Address{}
+		sd.Destructs = d.Destructs[:]
+	}
+
+	// Storage
+	if d.Storages != nil {
+		sd.Storage = map[common.Address]map[common.Hash]hexutil.Bytes{}
+		for _, storage := range d.Storages {
+			accHash := storage.Account
+			if _, exist := sd.Storage[accHash]; !exist {
+				sd.Storage[accHash] = map[common.Hash]hexutil.Bytes{}
+			}
+			if len(storage.Keys) != len(storage.Vals) {
+				log.Error("impossible case? len(keys)!=len(vals)")
+				return nil
+			}
+			for i := range storage.Keys {
+				k, v := storage.Keys[i], storage.Vals[i]
+				// In state_obj.go: L378, it seems to force casting it from byte arr to string,
+				sd.Storage[accHash][common.BytesToHash([]byte(k))] = v
+			}
+		}
+	}
+
+	// Codes
+	if d.Codes != nil {
+		sd.Codes = map[common.Hash]hexutil.Bytes{}
+		for _, code := range d.Codes {
+			sd.Codes[code.Hash] = code.Code
+		}
+	}
+
+	// Resolve empty case
+	if sd.Accounts == nil && sd.Codes == nil && sd.Destructs == nil && sd.Storage == nil {
+		return nil
+	}
+	return sd
+}
+
+/*
 func transferDiffLayerData(diffLayer *types.DiffLayer) *StateDiff {
 	accountsMap := make(map[string]string)
 	for _, v := range diffLayer.Accounts {
@@ -714,7 +834,7 @@ func transferDiffLayerData(diffLayer *types.DiffLayer) *StateDiff {
 		Destructs:   destructsList,
 		Codes:       codesMap,
 	}
-}
+}*/
 
 // Result structs for GetProof
 type AccountResult struct {

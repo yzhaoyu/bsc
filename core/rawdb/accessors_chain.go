@@ -515,7 +515,6 @@ func WriteDiffLayerRLP(db ethdb.KeyValueWriter, blockHash common.Hash, rlp rlp.R
 func ReadDiffLayer(db ethdb.KeyValueReader, blockHash common.Hash) *types.DiffLayer {
 	data := ReadDiffLayerRLP(db, blockHash)
 	if len(data) == 0 {
-		log.Info("3333")
 		return nil
 	}
 	diff := new(types.DiffLayer)
