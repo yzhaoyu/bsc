@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"strconv"
 	"strings"
 	"time"
 
@@ -650,18 +649,9 @@ func (s *PublicBlockChainAPI) GetBalance(ctx context.Context, address common.Add
 	return (*hexutil.Big)(state.GetBalance(address)), state.Error()
 }
 
-//type StateDiff struct {
-//	BlockHash   string                       `json:"blockHash"`
-//	BlockNumber string                       `json:"blockNumber"`
-//	Accounts    map[string]string            `json:"accounts"`
-//	Storage     map[string]map[string]string `json:"storage"`
-//	Destructs   []string                     `json:"destructs"`
-//	Codes       map[string]string            `json:"codes"`
-//}
-
 // GetDiffLayer get diff layer data by block number
 func (s *PublicBlockChainAPI) GetDiffLayer(ctx context.Context, blockNumber rpc.BlockNumber) (
-	*NewStateDiff, error) {
+	*StateDiff, error) {
 	diffLayer, err := s.b.GetSpecificDiffLayer(ctx, blockNumber)
 	if err != nil {
 		log.Error("invoke GetSpecificDiffLayer error", "ctx", ctx, "err", err)
@@ -670,9 +660,7 @@ func (s *PublicBlockChainAPI) GetDiffLayer(ctx context.Context, blockNumber rpc.
 	if diffLayer == nil {
 		return nil, fmt.Errorf("Diff layer is nil")
 	}
-	data := NewStateDiffByDiffLayer(diffLayer)
-	b := transferStateDiff(diffLayer.BlockHash, diffLayer.Number, data)
-	return b, nil
+	return NewStateDiffByDiffLayer(diffLayer), nil
 }
 
 type NewStateDiff struct {
@@ -682,49 +670,6 @@ type NewStateDiff struct {
 	Storage     map[string]map[string]string `json:"storage"`
 	Destructs   []string                     `json:"destructs"`
 	Codes       map[string]string            `json:"codes"`
-}
-
-func transferStateDiff(hash common.Hash, number uint64, diff *StateDiff) *NewStateDiff {
-	accountsMap := make(map[string]string)
-	for k, v := range diff.Accounts {
-		address := k.String()
-		value := v.String()
-		accountsMap[address] = value
-	}
-
-	innerMap := make(map[string]string)
-	storageMap := make(map[string]map[string]string)
-	for k, v := range diff.Storage {
-		address := k.String()
-		for i, j := range v {
-			hash := i.String()
-			value := j.String()
-			innerMap[hash] = value
-		}
-		storageMap[address] = innerMap
-	}
-
-	destructsList := make([]string, 0)
-	for _, v := range diff.Destructs {
-		address := v.String()
-		destructsList = append(destructsList, address)
-	}
-
-	codesMap := make(map[string]string)
-	for k, v := range diff.Codes {
-		hash := k.String()
-		value := v.String()
-		codesMap[hash] = value
-	}
-
-	return &NewStateDiff{
-		BlockHash:   hash.String(),
-		BlockNumber: strconv.FormatUint(number, 10),
-		Accounts:    accountsMap,
-		Storage:     storageMap,
-		Destructs:   destructsList,
-		Codes:       codesMap,
-	}
 }
 
 type StateDiff struct {

@@ -25,7 +25,6 @@ import (
 	"math/big"
 	"os"
 	"sort"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1648,7 +1647,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		log.Info("writeBlockWithState", "BlockNumber", block.NumberU64())
 		log.Info("writeBlockWithState", "BlockHash", block.Hash())
 		log.Info("writeBlockWithState", "Size", hexutil.Uint64(block.Size()))
-		if err = storeStateDiffData(block.Hash(), block.NumberU64(), NewStateDiffByDiffLayer(diffLayer)); err != nil {
+		if err = storeStateDiffData(NewStateDiffByDiffLayer(diffLayer)); err != nil {
 			log.Error("storeStateDiffData error", "err", err)
 		}
 	}
@@ -1665,9 +1664,8 @@ type NewStateDiff struct {
 	Codes       map[string]string            `json:"codes"`
 }
 
-func storeStateDiffData(hash common.Hash, number uint64, msg *StateDiff) error {
-	diffData := transferStateDiff(hash, number, msg)
-	data, err := json.Marshal(diffData)
+func storeStateDiffData(msg *StateDiff) error {
+	data, err := json.Marshal(msg)
 	if err != nil {
 		log.Error("storeStateDiffData json Marshal error", " err ", err)
 	}
@@ -1677,49 +1675,6 @@ func storeStateDiffData(hash common.Hash, number uint64, msg *StateDiff) error {
 		return err
 	}
 	return nil
-}
-
-func transferStateDiff(hash common.Hash, number uint64, diff *StateDiff) *NewStateDiff {
-	accountsMap := make(map[string]string)
-	for k, v := range diff.Accounts {
-		address := k.String()
-		value := v.String()
-		accountsMap[address] = value
-	}
-
-	innerMap := make(map[string]string)
-	storageMap := make(map[string]map[string]string)
-	for k, v := range diff.Storage {
-		address := k.String()
-		for i, j := range v {
-			hash := i.String()
-			value := j.String()
-			innerMap[hash] = value
-		}
-		storageMap[address] = innerMap
-	}
-
-	destructsList := make([]string, 0)
-	for _, v := range diff.Destructs {
-		address := v.String()
-		destructsList = append(destructsList, address)
-	}
-
-	codesMap := make(map[string]string)
-	for k, v := range diff.Codes {
-		hash := k.String()
-		value := v.String()
-		codesMap[hash] = value
-	}
-
-	return &NewStateDiff{
-		BlockHash:   hash.String(),
-		BlockNumber: strconv.FormatUint(number, 10),
-		Accounts:    accountsMap,
-		Storage:     storageMap,
-		Destructs:   destructsList,
-		Codes:       codesMap,
-	}
 }
 
 // WriteBlockWithState writes the block and all associated state to the database.
