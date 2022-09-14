@@ -1648,7 +1648,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		StateDiff1:  NewStateDiffByDiffLayer(diffLayer),
 		Size:        hexutil.Uint64(block.Size()),
 	}
-	log.Info("sjdbuewbdew", data)
+	log.Info("sjdbuewbdew", "data", data)
 	wg.Wait()
 	return nil
 }
