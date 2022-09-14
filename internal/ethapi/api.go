@@ -665,9 +665,9 @@ func (s *PublicBlockChainAPI) GetDiffLayer(ctx context.Context, blockNumber rpc.
 
 type Account struct {
 	Nonce    uint64
-	Balance  *big.Int
-	Root     []byte
-	CodeHash []byte
+	Balance  uint64
+	Root     common.Hash
+	CodeHash common.Hash
 }
 
 type StateDiff struct {
@@ -689,13 +689,24 @@ func NewStateDiffByDiffLayer(d *types.DiffLayer) *StateDiff {
 	// Accounts
 	if d.Accounts != nil {
 		sd.Accounts = map[common.Address]*Account{}
-		var a Account
+		var a struct {
+			Nonce    uint64
+			Balance  *big.Int
+			Root     []byte
+			CodeHash []byte
+		}
 		for _, acc := range d.Accounts {
 			if err := rlp.DecodeBytes(acc.Blob, &a); err != nil {
 				log.Error("rlp DecodeBytes error", "err", err)
 				return nil
 			}
-			sd.Accounts[acc.Account] = &a
+			b := Account{
+				Nonce:    a.Nonce,
+				Balance:  a.Balance.Uint64(),
+				Root:     common.BytesToHash(a.Root),
+				CodeHash: common.BytesToHash(a.CodeHash),
+			}
+			sd.Accounts[acc.Account] = &b
 		}
 	}
 

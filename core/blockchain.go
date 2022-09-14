@@ -1448,8 +1448,15 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 	return nil
 }
 
+type Account struct {
+	Nonce    uint64
+	Balance  *big.Int
+	Root     []byte
+	CodeHash []byte
+}
+
 type StateDiff struct {
-	Accounts map[common.Address]hexutil.Bytes `json:"accounts"`
+	Accounts map[common.Address]*Account `json:"accounts"`
 	// The key in address is actually type uint256.Int. Here just simply encode it as a hash bytes array common.Hash
 	// in order to help us to serialize/deserialize.
 	Storage   map[common.Address]map[common.Hash]hexutil.Bytes `json:"storage"`
@@ -1466,9 +1473,14 @@ func NewStateDiffByDiffLayer(d *types.DiffLayer) *StateDiff {
 	sd := &StateDiff{}
 	// Accounts
 	if d.Accounts != nil {
-		sd.Accounts = map[common.Address]hexutil.Bytes{}
+		sd.Accounts = map[common.Address]*Account{}
+		var a Account
 		for _, acc := range d.Accounts {
-			sd.Accounts[acc.Account] = acc.Blob
+			if err := rlp.DecodeBytes(acc.Blob, &a); err != nil {
+				log.Error("rlp DecodeBytes error", "err", err)
+				return nil
+			}
+			sd.Accounts[acc.Account] = &a
 		}
 	}
 
@@ -1645,15 +1657,6 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	}
 	wg.Wait()
 	return nil
-}
-
-type NewStateDiff struct {
-	BlockHash   string                       `json:"blockHash"`
-	BlockNumber string                       `json:"blockNumber"`
-	Accounts    map[string]string            `json:"accounts"`
-	Storage     map[string]map[string]string `json:"storage"`
-	Destructs   []string                     `json:"destructs"`
-	Codes       map[string]string            `json:"codes"`
 }
 
 func storeStateDiffData(msg *StateDiff) error {
