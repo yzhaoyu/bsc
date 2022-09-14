@@ -695,6 +695,7 @@ func NewStateDiffByDiffLayer(d *types.DiffLayer) *StateDiff {
 				log.Error("rlp DecodeBytes error", "err", err)
 				return nil
 			}
+			sd.Accounts[acc.Account] = &a
 		}
 	}
 
