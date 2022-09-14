@@ -663,17 +663,15 @@ func (s *PublicBlockChainAPI) GetDiffLayer(ctx context.Context, blockNumber rpc.
 	return NewStateDiffByDiffLayer(diffLayer), nil
 }
 
-type NewStateDiff struct {
-	BlockHash   string                       `json:"blockHash"`
-	BlockNumber string                       `json:"blockNumber"`
-	Accounts    map[string]string            `json:"accounts"`
-	Storage     map[string]map[string]string `json:"storage"`
-	Destructs   []string                     `json:"destructs"`
-	Codes       map[string]string            `json:"codes"`
+type Account struct {
+	Nonce    uint64
+	Balance  *big.Int
+	Root     []byte
+	CodeHash []byte
 }
 
 type StateDiff struct {
-	Accounts map[common.Address]hexutil.Bytes `json:"accounts"`
+	Accounts map[common.Address]*Account `json:"accounts"`
 	// The key in address is actually type uint256.Int. Here just simply encode it as a hash bytes array common.Hash
 	// in order to help us to serialize/deserialize.
 	Storage   map[common.Address]map[common.Hash]hexutil.Bytes `json:"storage"`
@@ -690,9 +688,13 @@ func NewStateDiffByDiffLayer(d *types.DiffLayer) *StateDiff {
 	sd := &StateDiff{}
 	// Accounts
 	if d.Accounts != nil {
-		sd.Accounts = map[common.Address]hexutil.Bytes{}
+		sd.Accounts = map[common.Address]*Account{}
+		var a Account
 		for _, acc := range d.Accounts {
-			sd.Accounts[acc.Account] = acc.Blob
+			if err := rlp.DecodeBytes(acc.Blob, &a); err != nil {
+				log.Error("rlp DecodeBytes error", "err", err)
+				return nil
+			}
 		}
 	}
 
@@ -736,50 +738,6 @@ func NewStateDiffByDiffLayer(d *types.DiffLayer) *StateDiff {
 	}
 	return sd
 }
-
-/*
-func transferDiffLayerData(diffLayer *types.DiffLayer) *StateDiff {
-	accountsMap := make(map[string]string)
-	for _, v := range diffLayer.Accounts {
-		address := v.Account.String()
-		value := hexutil.Bytes(v.Blob).String()
-		accountsMap[address] = value
-	}
-
-	innerMap := make(map[string]string)
-	storageMap := make(map[string]map[string]string)
-	for _, v := range diffLayer.Storages {
-		address := v.Account.String()
-		for _, j := range v.Keys {
-			for _, n := range v.Vals {
-				innerMap[hexutil.Bytes(j).String()] = hexutil.Bytes(n).String()
-			}
-		}
-		storageMap[address] = innerMap
-	}
-
-	destructsList := make([]string, 0)
-	for _, v := range diffLayer.Destructs {
-		address := v.String()
-		destructsList = append(destructsList, address)
-	}
-
-	codesMap := make(map[string]string)
-	for _, v := range diffLayer.Codes {
-		hash := v.Hash.String()
-		value := hexutil.Bytes(v.Code).String()
-		codesMap[hash] = value
-	}
-
-	return &StateDiff{
-		BlockHash:   diffLayer.BlockHash.String(),
-		BlockNumber: strconv.FormatUint(diffLayer.Number, 10),
-		Accounts:    accountsMap,
-		Storage:     storageMap,
-		Destructs:   destructsList,
-		Codes:       codesMap,
-	}
-}*/
 
 // Result structs for GetProof
 type AccountResult struct {

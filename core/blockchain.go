@@ -1448,14 +1448,6 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 	return nil
 }
 
-type BlockData struct {
-	BlockNumber uint64
-	BlockHash   common.Hash
-	Header      *types.Header
-	StateDiff1  *StateDiff
-	Size        hexutil.Uint64
-}
-
 type StateDiff struct {
 	Accounts map[common.Address]hexutil.Bytes `json:"accounts"`
 	// The key in address is actually type uint256.Int. Here just simply encode it as a hash bytes array common.Hash
