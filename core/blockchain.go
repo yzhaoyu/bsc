@@ -1626,10 +1626,11 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	}
 	var err error
 	// Commit all cached state changes into underlying memory database.
-	_, diffLayer, err := state.Commit(bc.tryRewindBadBlocks, tryCommitTrieDB)
+	root, diffLayer, err := state.Commit(bc.tryRewindBadBlocks, tryCommitTrieDB)
 	if err != nil {
 		return err
 	}
+	log.Info("0000", "root", root)
 
 	// Ensure no empty block body
 	if diffLayer != nil && block.Header().TxHash != types.EmptyRootHash {
