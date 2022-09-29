@@ -653,11 +653,13 @@ func (s *StateDB) getStateObject(addr common.Address) *StateObject {
 func (s *StateDB) getDeletedStateObject(addr common.Address) *StateObject {
 	// Prefer live objects if any is available
 	if obj := s.stateObjects[addr]; obj != nil {
+		log.Info("222")
 		return obj
 	}
 	// If no live objects are available, attempt to use snapshots
 	var data *types.StateAccount
 	if s.snap != nil {
+		log.Info("333")
 		start := time.Now()
 		acc, err := s.snap.Account(crypto.HashData(s.hasher, addr.Bytes()))
 		if metrics.EnabledExpensive {
@@ -684,6 +686,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *StateObject {
 
 	// If snapshot unavailable or reading from it failed, load from the database
 	if data == nil {
+		log.Info("444")
 		if s.trie == nil {
 			tr, err := s.db.OpenTrie(s.originalRoot)
 			if err != nil {
@@ -709,6 +712,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *StateObject {
 			log.Error("Failed to decode state object", "addr", addr, "err", err)
 			return nil
 		}
+		log.Info("555")
 	}
 	// Insert into the live set
 	obj := newObject(s, addr, *data)
@@ -736,8 +740,10 @@ func (s *StateDB) createObject(addr common.Address) (newobj, prev *StateObject) 
 
 	var prevdestruct bool
 	if s.snap != nil && prev != nil {
+		log.Info("111")
 		_, prevdestruct = s.snapDestructs[prev.address]
 		if !prevdestruct {
+			log.Info("lpo", "prev", prev.address)
 			s.snapDestructs[prev.address] = struct{}{}
 		}
 	}
@@ -959,6 +965,7 @@ func (s *StateDB) WaitPipeVerification() error {
 // the journal as well as the refunds. Finalise, however, will not push any updates
 // into the tries just yet. Only IntermediateRoot or Commit will do that.
 func (s *StateDB) Finalise(deleteEmptyObjects bool) {
+	log.Info("6")
 	addressesToPrefetch := make([][]byte, 0, len(s.journal.dirties))
 	for addr := range s.journal.dirties {
 		obj, exist := s.stateObjects[addr]
@@ -972,6 +979,7 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 			continue
 		}
 		if obj.suicided || (deleteEmptyObjects && obj.empty()) {
+			log.Info("7", "suicided", obj.suicided, "addr", addr, "empty", obj.empty())
 			obj.deleted = true
 
 			// If state snapshotting is active, also mark the destruction there.
@@ -979,6 +987,7 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 			// transactions within the same block might self destruct and then
 			// ressurrect an account; but the snapshotter needs both events.
 			if s.snap != nil {
+				log.Info("8")
 				s.snapDestructs[obj.address] = struct{}{} // We need to maintain account deletions explicitly (will remain set indefinitely)
 				delete(s.snapAccounts, obj.address)       // Clear out any previously updated account data (may be recreated via a ressurrect)
 				delete(s.snapStorage, obj.address)        // Clear out any previously updated storage data (may be recreated via a ressurrect)
@@ -1425,6 +1434,7 @@ func (s *StateDB) Commit(failPostCommitFunc func(), postCommitFuncs ...func() er
 
 			for addr := range s.stateObjectsDirty {
 				if obj := s.stateObjects[addr]; !obj.deleted {
+					log.Info("dddd", "deleted", addr)
 					// Write any contract code associated with the state object
 					tasks <- func() {
 						// Write any storage changes in the state object to its storage trie
@@ -1539,6 +1549,7 @@ func (s *StateDB) Commit(failPostCommitFunc func(), postCommitFuncs ...func() er
 					s.PopulateSnapAccountAndStorage()
 				}
 				diffLayer.Destructs, diffLayer.Accounts, diffLayer.Storages = s.SnapToDiffLayer()
+				log.Info("qtyu", "Destructs", diffLayer.Destructs)
 				// Only update if there's a state transition (skip empty Clique blocks)
 				if parent := s.snap.Root(); parent != s.expectedRoot {
 					err := s.snaps.Update(s.expectedRoot, parent, s.snapDestructs, s.snapAccounts, s.snapStorage, verified)
