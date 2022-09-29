@@ -1647,7 +1647,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		go bc.cacheDiffLayer(diffLayer, diffLayerCh)
 	}
 
-	if block.NumberU64() == 1 {
+	if block.NumberU64() == 4 {
 		log.Info("writeBlockWithState", "BlockNumber", block.NumberU64())
 		log.Info("writeBlockWithState", "BlockHash", block.Hash())
 		log.Info("writeBlockWithState", "Size", hexutil.Uint64(block.Size()))
