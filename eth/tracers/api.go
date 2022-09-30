@@ -674,11 +674,11 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 		// Only delete empty objects if EIP158/161 (a.k.a Spurious Dragon) is in effect
 		statedb.Finalise(vmenv.ChainConfig().IsEIP158(block.Number()))
 
-		root, _, err := statedb.Commit(nil)
-		if err != nil {
-			log.Info("traceBlock commit", "statedb.Commit: ", err)
-		}
-		log.Info("traceBlock", "root", root)
+		//root, _, err := statedb.Commit(nil)
+		//if err != nil {
+		//	log.Info("traceBlock commit", "statedb.Commit: ", err)
+		//}
+		//log.Info("traceBlock", "root", root)
 	}
 	close(jobs)
 	pend.Wait()
