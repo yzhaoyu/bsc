@@ -684,6 +684,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *StateObject {
 		}
 		if err == nil {
 			if acc == nil {
+				log.Info("qtgdc")
 				return nil
 			}
 			data = &types.StateAccount{
@@ -753,6 +754,7 @@ func (s *StateDB) GetOrNewStateObject(addr common.Address) *StateObject {
 // createObject creates a new state object. If there is an existing account with
 // the given address, it is overwritten and returned as the second return value.
 func (s *StateDB) createObject(addr common.Address) (newobj, prev *StateObject) {
+	log.Info("createObject", "ajsdbw", addr)
 	prev = s.getDeletedStateObject(addr) // Note, prev might have been deleted, we need that!
 
 	var prevdestruct bool
