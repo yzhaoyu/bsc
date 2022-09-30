@@ -28,6 +28,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/gopool"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -146,6 +147,22 @@ type StateDB struct {
 	StorageUpdated int
 	AccountDeleted int
 	StorageDeleted int
+}
+
+// UsedAccount used to gather diffLayer
+type UsedAccount struct {
+	Nonce    uint64
+	Balance  uint64
+	Root     common.Hash
+	CodeHash common.Hash
+}
+
+// StateDiff used for new diffLayer
+type StateDiff struct {
+	Accounts  map[common.Address]*UsedAccount                  `json:"accounts"`
+	Storage   map[common.Address]map[common.Hash]hexutil.Bytes `json:"storage"`
+	Destructs map[common.Address]struct{}                      `json:"destructs"`
+	Codes     map[common.Hash]hexutil.Bytes                    `json:"codes"`
 }
 
 // New creates a new state from a given trie.
@@ -1353,6 +1370,101 @@ func (s *StateDB) LightCommit() (common.Hash, *types.DiffLayer, error) {
 	return root, s.diffLayer, nil
 }
 
+func (s *StateDB) GatherDiffLayer() *StateDiff {
+	sd := &StateDiff{}
+	sd.Accounts = map[common.Address]*UsedAccount{}
+	sd.Codes = map[common.Hash]hexutil.Bytes{}
+	sd.Storage = map[common.Address]map[common.Hash]hexutil.Bytes{}
+	sd.Destructs = map[common.Address]struct{}{}
+
+	for addr := range s.stateObjectsDirty {
+		if obj := s.stateObjects[addr]; !obj.deleted {
+			// accounts
+			accountByte := snapshot.SlimAccountRLP(obj.data.Nonce, obj.data.Balance, obj.data.Root, obj.data.CodeHash)
+			var a struct {
+				Nonce    uint64
+				Balance  *big.Int
+				Root     []byte
+				CodeHash []byte
+			}
+			if err := rlp.DecodeBytes(accountByte, &a); err != nil {
+				return nil
+			}
+			b := UsedAccount{
+				Nonce:    a.Nonce,
+				Balance:  a.Balance.Uint64(),
+				Root:     common.BytesToHash(a.Root),
+				CodeHash: common.BytesToHash(a.CodeHash),
+			}
+			sd.Accounts[addr] = &b
+
+			// storage
+			storage := map[string][]byte{}
+			for key, value := range obj.pendingStorage {
+				if value == obj.originStorage[key] {
+					continue
+				}
+				var v []byte
+				if (value != common.Hash{}) {
+					v, _ = rlp.EncodeToBytes(common.TrimLeftZeroes(value[:]))
+				}
+				storage[string(key[:])] = v
+			}
+			innerStorage := map[common.Hash]hexutil.Bytes{}
+			for k, v := range storage {
+				innerStorage[common.BytesToHash([]byte(k))] = v
+			}
+			sd.Storage[addr] = innerStorage
+			if value, _ := sd.Storage[addr]; len(value) == 0 {
+				delete(sd.Storage, addr)
+			}
+
+			// codes
+			if obj.code != nil && obj.dirtyCode {
+				sd.Codes[common.BytesToHash(obj.CodeHash())] = []byte(obj.code)
+			}
+		}
+	}
+
+	// destructs
+	for addr := range s.stateObjectsPending {
+		if obj := s.stateObjects[addr]; obj.deleted {
+			slice := make([]common.Address, 0)
+			slice = append(slice, obj.Address())
+			sd.Destructs = sliceToMap(slice)
+		}
+	}
+
+	//for addr := range s.stateObjectsPending {
+	//	if obj := s.stateObjects[addr]; obj.deleted {
+	//		slice := make([]common.Address, 0)
+	//		slice = append(slice, obj.Address())
+	//		sd.Destructs = sliceToMap(slice)
+	//	}
+	//
+	//	if obj := s.getDeletedStateObject(addr); obj != nil {
+	//		log.Info("lll", "addr", addr)
+	//		if _, ok := sd.Destructs[obj.Address()]; !ok {
+	//			log.Info("bgt", "addr", addr)
+	//			sd.Destructs[obj.Address()] = struct{}{}
+	//		}
+	//	}
+	//}
+
+	if sd.Accounts == nil && sd.Codes == nil && sd.Destructs == nil && sd.Storage == nil {
+		return nil
+	}
+	return sd
+}
+
+func sliceToMap(destructs []common.Address) map[common.Address]struct{} {
+	data := make(map[common.Address]struct{})
+	for _, v := range destructs {
+		data[v] = struct{}{}
+	}
+	return data
+}
+
 // Commit writes the state to the underlying in-memory trie database.
 func (s *StateDB) Commit(failPostCommitFunc func(), postCommitFuncs ...func() error) (common.Hash, *types.DiffLayer, error) {
 	if s.dbErr != nil {
@@ -1511,6 +1623,7 @@ func (s *StateDB) Commit(failPostCommitFunc func(), postCommitFuncs ...func() er
 			codeWriter := s.db.TrieDB().DiskDB().NewBatch()
 			for addr := range s.stateObjectsDirty {
 				if obj := s.stateObjects[addr]; !obj.deleted {
+					log.Info("wooooo", "addr list", addr)
 					if obj.code != nil && obj.dirtyCode {
 						rawdb.WriteCode(codeWriter, common.BytesToHash(obj.CodeHash()), obj.code)
 						obj.dirtyCode = false
@@ -1550,6 +1663,7 @@ func (s *StateDB) Commit(failPostCommitFunc func(), postCommitFuncs ...func() er
 				}
 				diffLayer.Destructs, diffLayer.Accounts, diffLayer.Storages = s.SnapToDiffLayer()
 				log.Info("qtyu", "Destructs", diffLayer.Destructs)
+				log.Info("uiyl", "Accounts", diffLayer.Accounts)
 				// Only update if there's a state transition (skip empty Clique blocks)
 				if parent := s.snap.Root(); parent != s.expectedRoot {
 					err := s.snaps.Update(s.expectedRoot, parent, s.snapDestructs, s.snapAccounts, s.snapStorage, verified)
