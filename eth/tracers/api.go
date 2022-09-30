@@ -656,6 +656,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 		// Generate the next state snapshot fast without tracing
 		msg, _ := tx.AsMessage(signer, block.BaseFee())
 		if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
+			log.Info("eudfweuifhecfvjernr")
 			if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
 				balance := statedb.GetBalance(consensus.SystemAddress)
 				if balance.Cmp(common.Big0) > 0 {
