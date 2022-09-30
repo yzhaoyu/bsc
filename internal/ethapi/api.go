@@ -648,6 +648,108 @@ func (s *PublicBlockChainAPI) GetBalance(ctx context.Context, address common.Add
 	return (*hexutil.Big)(state.GetBalance(address)), state.Error()
 }
 
+// GetDiffLayer get diff layer data by block number
+func (s *PublicBlockChainAPI) GetDiffLayer(ctx context.Context, blockNumber rpc.BlockNumber) (
+	*StateDiff, error) {
+	diffLayer, err := s.b.GetSpecificDiffLayer(ctx, blockNumber)
+	if err != nil {
+		log.Error("invoke GetSpecificDiffLayer error", "ctx", ctx, "err", err)
+		return nil, err
+	}
+	if diffLayer == nil {
+		return nil, fmt.Errorf("Diff layer is nil")
+	}
+	return NewStateDiffByDiffLayer(diffLayer), nil
+}
+
+type Account struct {
+	Nonce    uint64
+	Balance  uint64
+	Root     common.Hash
+	CodeHash common.Hash
+}
+
+type StateDiff struct {
+	Accounts map[common.Address]*Account `json:"accounts"`
+	// The key in address is actually type uint256.Int. Here just simply encode it as a hash bytes array common.Hash
+	// in order to help us to serialize/deserialize.
+	Storage   map[common.Address]map[common.Hash]hexutil.Bytes `json:"storage"`
+	Destructs []common.Address                                 `json:"destructs"`
+
+	Codes map[common.Hash]hexutil.Bytes `json:"codes"`
+}
+
+func NewStateDiffByDiffLayer(d *types.DiffLayer) *StateDiff {
+	if d == nil {
+		return nil
+	}
+
+	sd := &StateDiff{}
+	// Accounts
+	if d.Accounts != nil {
+		sd.Accounts = map[common.Address]*Account{}
+		var a struct {
+			Nonce    uint64
+			Balance  *big.Int
+			Root     []byte
+			CodeHash []byte
+		}
+		for _, acc := range d.Accounts {
+			if err := rlp.DecodeBytes(acc.Blob, &a); err != nil {
+				log.Error("rlp DecodeBytes error", "err", err)
+				return nil
+			}
+			b := Account{
+				Nonce:    a.Nonce,
+				Balance:  a.Balance.Uint64(),
+				Root:     common.BytesToHash(a.Root),
+				CodeHash: common.BytesToHash(a.CodeHash),
+			}
+			sd.Accounts[acc.Account] = &b
+		}
+	}
+
+	// Destructs
+	if d.Destructs != nil {
+		sd.Destructs = []common.Address{}
+		sd.Destructs = d.Destructs[:]
+	}
+
+	// Storage
+	if d.Storages != nil {
+		sd.Storage = map[common.Address]map[common.Hash]hexutil.Bytes{}
+		for _, storage := range d.Storages {
+			accHash := storage.Account
+			if _, exist := sd.Storage[accHash]; !exist {
+				sd.Storage[accHash] = map[common.Hash]hexutil.Bytes{}
+			}
+			if len(storage.Keys) != len(storage.Vals) {
+				log.Error("impossible case? len(keys)!=len(vals)")
+				return nil
+			}
+			for i := range storage.Keys {
+				k, v := storage.Keys[i], storage.Vals[i]
+				// In state_obj.go: L378, it seems to force casting it from byte arr to string,
+				sd.Storage[accHash][common.BytesToHash([]byte(k))] = v
+			}
+		}
+	}
+
+	// Codes
+	if d.Codes != nil {
+		sd.Codes = map[common.Hash]hexutil.Bytes{}
+		for _, code := range d.Codes {
+			sd.Codes[code.Hash] = code.Code
+		}
+	}
+
+	// Resolve empty case
+	if sd.Accounts == nil && sd.Codes == nil && sd.Destructs == nil && sd.Storage == nil {
+		return nil
+	}
+	return sd
+}
+
 // Result structs for GetProof
 type AccountResult struct {
 	Address      common.Address  `json:"address"`
@@ -743,10 +845,10 @@ func (s *PublicBlockChainAPI) GetHeaderByHash(ctx context.Context, hash common.H
 }
 
 // GetBlockByNumber returns the requested canonical block.
-// * When blockNr is -1 the chain head is returned.
-// * When blockNr is -2 the pending chain head is returned.
-// * When fullTx is true all transactions in the block are returned, otherwise
-//   only the transaction hash is returned.
+//   - When blockNr is -1 the chain head is returned.
+//   - When blockNr is -2 the pending chain head is returned.
+//   - When fullTx is true all transactions in the block are returned, otherwise
+//     only the transaction hash is returned.
 func (s *PublicBlockChainAPI) GetBlockByNumber(ctx context.Context, number rpc.BlockNumber, fullTx bool) (map[string]interface{}, error) {
 	block, err := s.b.BlockByNumber(ctx, number)
 	if block != nil && err == nil {

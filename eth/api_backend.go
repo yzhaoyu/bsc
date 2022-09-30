@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/miner"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -362,4 +363,13 @@ func (b *EthAPIBackend) StateAtBlock(ctx context.Context, block *types.Block, re
 
 func (b *EthAPIBackend) StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, *state.StateDB, error) {
 	return b.eth.stateAtTransaction(block, txIndex, reexec)
+}
+
+func (b *EthAPIBackend) GetSpecificDiffLayer(ctx context.Context, blockNumber rpc.BlockNumber) (*types.DiffLayer, error) {
+	blockHash := b.eth.blockchain.GetBlockHashByBlockNumber(uint64(blockNumber))
+	log.Info("GetSpecificDiffLayer", "blockNumber", uint64(blockNumber), "blockHash", blockHash.String())
+	if blockHash == (common.Hash{}) {
+		return nil, errors.New("block number is non exist")
+	}
+	return b.eth.blockchain.GetTrustedDiffLayer(blockHash), nil
 }

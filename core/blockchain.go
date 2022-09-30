@@ -18,15 +18,18 @@
 package core
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"math/big"
+	"os"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/crypto/sha3"
 
@@ -507,7 +510,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	return bc, nil
 }
 
-// GetVMConfig returns the block chain VM config.
+// GetVMConfig returns the blockchain VM config.
 func (bc *BlockChain) GetVMConfig() *vm.Config {
 	return &bc.vmConfig
 }
@@ -1445,6 +1448,83 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 	return nil
 }
 
+type Account struct {
+	Nonce    uint64
+	Balance  *big.Int
+	Root     []byte
+	CodeHash []byte
+}
+
+type StateDiff struct {
+	Accounts map[common.Address]*Account `json:"accounts"`
+	// The key in address is actually type uint256.Int. Here just simply encode it as a hash bytes array common.Hash
+	// in order to help us to serialize/deserialize.
+	Storage   map[common.Address]map[common.Hash]hexutil.Bytes `json:"storage"`
+	Destructs []common.Address                                 `json:"destructs"`
+
+	Codes map[common.Hash]hexutil.Bytes `json:"codes"`
+}
+
+func NewStateDiffByDiffLayer(d *types.DiffLayer) *StateDiff {
+	if d == nil {
+		return nil
+	}
+
+	sd := &StateDiff{}
+	// Accounts
+	if d.Accounts != nil {
+		sd.Accounts = map[common.Address]*Account{}
+		var a Account
+		for _, acc := range d.Accounts {
+			if err := rlp.DecodeBytes(acc.Blob, &a); err != nil {
+				log.Error("rlp DecodeBytes error", "err", err)
+				return nil
+			}
+			sd.Accounts[acc.Account] = &a
+		}
+	}
+
+	// Destructs
+	if d.Destructs != nil {
+		sd.Destructs = []common.Address{}
+		sd.Destructs = d.Destructs[:]
+	}
+
+	// Storage
+	if d.Storages != nil {
+		sd.Storage = map[common.Address]map[common.Hash]hexutil.Bytes{}
+		for _, storage := range d.Storages {
+			accHash := storage.Account
+			if _, exist := sd.Storage[accHash]; !exist {
+				sd.Storage[accHash] = map[common.Hash]hexutil.Bytes{}
+			}
+			if len(storage.Keys) != len(storage.Vals) {
+				log.Error("impossible case? len(keys)!=len(vals)")
+				return nil
+			}
+			for i := range storage.Keys {
+				k, v := storage.Keys[i], storage.Vals[i]
+				// In state_obj.go: L378, it seems to force casting it from byte arr to string,
+				sd.Storage[accHash][common.BytesToHash([]byte(k))] = v
+			}
+		}
+	}
+
+	// Codes
+	if d.Codes != nil {
+		sd.Codes = map[common.Hash]hexutil.Bytes{}
+		for _, code := range d.Codes {
+			sd.Codes[code.Hash] = code.Code
+		}
+	}
+
+	// Resolve empty case
+	if sd.Accounts == nil && sd.Codes == nil && sd.Destructs == nil && sd.Storage == nil {
+		return nil
+	}
+	return sd
+}
+
 // writeBlockWithState writes block, metadata and corresponding state data to the
 // database.
 func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB) error {
@@ -1544,11 +1624,13 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		}
 		return nil
 	}
+	var err error
 	// Commit all cached state changes into underlying memory database.
-	_, diffLayer, err := state.Commit(bc.tryRewindBadBlocks, tryCommitTrieDB)
+	root, diffLayer, err := state.Commit(bc.tryRewindBadBlocks, tryCommitTrieDB)
 	if err != nil {
 		return err
 	}
+	log.Info("0000", "root", root)
 
 	// Ensure no empty block body
 	if diffLayer != nil && block.Header().TxHash != types.EmptyRootHash {
@@ -1565,7 +1647,30 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 
 		go bc.cacheDiffLayer(diffLayer, diffLayerCh)
 	}
+
+	if block.NumberU64() == 4 {
+		log.Info("zhuanshuyu4block", "root", root)
+		log.Info("writeBlockWithState", "BlockNumber", block.NumberU64())
+		log.Info("writeBlockWithState", "BlockHash", block.Hash())
+		log.Info("writeBlockWithState", "Size", hexutil.Uint64(block.Size()))
+		if err = storeStateDiffData(NewStateDiffByDiffLayer(diffLayer)); err != nil {
+			log.Error("storeStateDiffData error", "err", err)
+		}
+	}
 	wg.Wait()
+	return nil
+}
+
+func storeStateDiffData(msg *StateDiff) error {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Error("storeStateDiffData json Marshal error", " err ", err)
+	}
+
+	if err = os.WriteFile("state_diff.json", data, 0755); err != nil {
+		log.Error("storeStateDiffData WriteFile error, err: ", err)
+		return err
+	}
 	return nil
 }
 
@@ -2489,7 +2594,7 @@ func (bc *BlockChain) trustedDiffLayerLoop() {
 			bc.diffQueue.Push(diff, -(int64(diff.Number)))
 		case <-bc.quit:
 			// Persist all diffLayers when shutdown, it will introduce redundant storage, but it is acceptable.
-			// If the client been ungracefully shutdown, it will missing all cached diff layers, it is acceptable as well.
+			// If the client been ungracefully shutdown, it will miss all cached diff layers, it is acceptable as well.
 			var batch ethdb.Batch
 			for !bc.diffQueue.Empty() {
 				diff, _ := bc.diffQueue.Pop()

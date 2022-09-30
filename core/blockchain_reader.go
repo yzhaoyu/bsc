@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -171,6 +172,17 @@ func (bc *BlockChain) GetBlockByNumber(number uint64) *types.Block {
 		return nil
 	}
 	return bc.GetBlock(hash, number)
+}
+
+// GetBlockHashByBlockNumber get block hash by block number
+func (bc *BlockChain) GetBlockHashByBlockNumber(number uint64) common.Hash {
+	hash := rawdb.ReadCanonicalHash(bc.db, number)
+	if hash == (common.Hash{}) {
+		return common.Hash{}
+	}
+	n := bc.hc.GetBlockNumber(hash)
+	log.Info("GetBlockHashByBlockNumber", "blockNumber", uint64(*n), "blockHash", hash.String())
+	return hash
 }
 
 // GetBlocksFromHash returns the block corresponding to hash and up to n-1 ancestors.

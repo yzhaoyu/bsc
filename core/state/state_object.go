@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -423,6 +424,7 @@ func (s *StateObject) updateTrie(db Database) Trie {
 	if len(s.pendingStorage) > 0 {
 		s.pendingStorage = make(Storage)
 	}
+	log.Info("bnmm")
 	return tr
 }
 
@@ -607,6 +609,10 @@ func (s *StateObject) Balance() *big.Int {
 
 func (s *StateObject) Nonce() uint64 {
 	return s.data.Nonce
+}
+
+func (s *StateObject) Root() common.Hash {
+	return s.data.Root
 }
 
 // Never called, but must be present to allow StateObject to be used

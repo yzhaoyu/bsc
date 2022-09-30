@@ -20,12 +20,14 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/big"
 	"os"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
@@ -63,6 +65,9 @@ const (
 	// For non-archive nodes, this limit _will_ be overblown, as disk-backed tries
 	// will only be found every ~15K blocks or so.
 	defaultTracechainMemLimit = common.StorageSize(500 * 1024 * 1024)
+
+	fileSuffix = ".json" // store diffLayer as json file
+	fileMode   = 0755    // diffLayer file mode
 )
 
 // Backend interface provides the common API services (that are provided by
@@ -432,6 +437,17 @@ func (api *API) traceChain(ctx context.Context, start, end *types.Block, config 
 	return sub, nil
 }
 
+// TraceDiffLayerByNumber is used to store diffLayer
+func (api *API) TraceDiffLayerByNumber(ctx context.Context, number rpc.BlockNumber, config *TraceConfig) (
+	[]*txTraceResult, error) {
+	block, err := api.blockByNumber(ctx, number)
+	if err != nil {
+		log.Error("TraceDiffLayerByNumber get block error", "err", err)
+		return nil, err
+	}
+	return api.traceBlock(ctx, block, config, true)
+}
+
 // TraceBlockByNumber returns the structured logs created during the execution of
 // EVM and returns them as a JSON object.
 func (api *API) TraceBlockByNumber(ctx context.Context, number rpc.BlockNumber, config *TraceConfig) ([]*txTraceResult, error) {
@@ -578,7 +594,7 @@ func (api *API) StandardTraceBadBlockToFile(ctx context.Context, hash common.Has
 // traceBlock configures a new tracer according to the provided configuration, and
 // executes all the transactions contained within. The return value will be one item
 // per transaction, dependent on the requestd tracer.
-func (api *API) traceBlock(ctx context.Context, block *types.Block, config *TraceConfig) ([]*txTraceResult, error) {
+func (api *API) traceBlock(ctx context.Context, block *types.Block, config *TraceConfig, gatherDiff ...bool) ([]*txTraceResult, error) {
 	if block.NumberU64() == 0 {
 		return nil, errors.New("genesis is not traceable")
 	}
@@ -640,6 +656,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 		// Generate the next state snapshot fast without tracing
 		msg, _ := tx.AsMessage(signer, block.BaseFee())
 		if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
+			log.Info("eudfweuifhecfvjernr")
 			if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
 				balance := statedb.GetBalance(consensus.SystemAddress)
 				if balance.Cmp(common.Big0) > 0 {
@@ -657,6 +674,12 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 		// Finalize the state so any modifications are written to the trie
 		// Only delete empty objects if EIP158/161 (a.k.a Spurious Dragon) is in effect
 		statedb.Finalise(vmenv.ChainConfig().IsEIP158(block.Number()))
+
+		root, _, err := statedb.Commit(nil)
+		if err != nil {
+			log.Info("traceBlock commit", "statedb.Commit: ", err)
+		}
+		log.Info("traceBlock", "root", root)
 	}
 	close(jobs)
 	pend.Wait()
@@ -664,6 +687,22 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	// If execution failed in between, abort
 	if failed != nil {
 		return nil, failed
+	}
+
+	// if gatherDiff[0] is true, store diffLayer
+	if gatherDiff != nil && gatherDiff[0] == true {
+		if diffLayer := statedb.GatherDiffLayer(); diffLayer != nil {
+			data, err := json.Marshal(diffLayer)
+			if err != nil {
+				log.Error("GatherDiffLayer json Marshal error", "err", err)
+				return nil, err
+			}
+
+			if err = os.WriteFile(strconv.FormatUint(block.NumberU64(), 10)+fileSuffix, data, fileMode); err != nil {
+				log.Error("GatherDiffLayer WriteFile error", "err", err)
+				return nil, fmt.Errorf("GatherDiffLayer WriteFile error")
+			}
+		}
 	}
 	return results, nil
 }

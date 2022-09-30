@@ -28,6 +28,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/gopool"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -146,6 +147,22 @@ type StateDB struct {
 	StorageUpdated int
 	AccountDeleted int
 	StorageDeleted int
+}
+
+// UsedAccount used to gather diffLayer
+type UsedAccount struct {
+	Nonce    uint64
+	Balance  uint64
+	Root     common.Hash
+	CodeHash common.Hash
+}
+
+// StateDiff used for new diffLayer
+type StateDiff struct {
+	Accounts  map[common.Address]*UsedAccount                  `json:"accounts"`
+	Storage   map[common.Address]map[common.Hash]hexutil.Bytes `json:"storage"`
+	Destructs map[common.Address]struct{}                      `json:"destructs"`
+	Codes     map[common.Hash]hexutil.Bytes                    `json:"codes"`
 }
 
 // New creates a new state from a given trie.
@@ -653,11 +670,13 @@ func (s *StateDB) getStateObject(addr common.Address) *StateObject {
 func (s *StateDB) getDeletedStateObject(addr common.Address) *StateObject {
 	// Prefer live objects if any is available
 	if obj := s.stateObjects[addr]; obj != nil {
+		log.Info("222")
 		return obj
 	}
 	// If no live objects are available, attempt to use snapshots
 	var data *types.StateAccount
 	if s.snap != nil {
+		log.Info("333")
 		start := time.Now()
 		acc, err := s.snap.Account(crypto.HashData(s.hasher, addr.Bytes()))
 		if metrics.EnabledExpensive {
@@ -665,6 +684,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *StateObject {
 		}
 		if err == nil {
 			if acc == nil {
+				log.Info("qtgdc")
 				return nil
 			}
 			data = &types.StateAccount{
@@ -684,6 +704,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *StateObject {
 
 	// If snapshot unavailable or reading from it failed, load from the database
 	if data == nil {
+		log.Info("444")
 		if s.trie == nil {
 			tr, err := s.db.OpenTrie(s.originalRoot)
 			if err != nil {
@@ -709,6 +730,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *StateObject {
 			log.Error("Failed to decode state object", "addr", addr, "err", err)
 			return nil
 		}
+		log.Info("555")
 	}
 	// Insert into the live set
 	obj := newObject(s, addr, *data)
@@ -732,12 +754,15 @@ func (s *StateDB) GetOrNewStateObject(addr common.Address) *StateObject {
 // createObject creates a new state object. If there is an existing account with
 // the given address, it is overwritten and returned as the second return value.
 func (s *StateDB) createObject(addr common.Address) (newobj, prev *StateObject) {
+	log.Info("createObject", "ajsdbw", addr)
 	prev = s.getDeletedStateObject(addr) // Note, prev might have been deleted, we need that!
 
 	var prevdestruct bool
 	if s.snap != nil && prev != nil {
+		log.Info("111")
 		_, prevdestruct = s.snapDestructs[prev.address]
 		if !prevdestruct {
+			log.Info("lpo", "prev", prev.address)
 			s.snapDestructs[prev.address] = struct{}{}
 		}
 	}
@@ -760,8 +785,8 @@ func (s *StateDB) createObject(addr common.Address) (newobj, prev *StateObject) 
 // CreateAccount is called during the EVM CREATE operation. The situation might arise that
 // a contract does the following:
 //
-//   1. sends funds to sha(account ++ (nonce + 1))
-//   2. tx_create(sha(account ++ nonce)) (note that this gets the address of 1)
+//  1. sends funds to sha(account ++ (nonce + 1))
+//  2. tx_create(sha(account ++ nonce)) (note that this gets the address of 1)
 //
 // Carrying over the balance ensures that Ether doesn't disappear.
 func (s *StateDB) CreateAccount(addr common.Address) {
@@ -959,6 +984,7 @@ func (s *StateDB) WaitPipeVerification() error {
 // the journal as well as the refunds. Finalise, however, will not push any updates
 // into the tries just yet. Only IntermediateRoot or Commit will do that.
 func (s *StateDB) Finalise(deleteEmptyObjects bool) {
+	log.Info("6")
 	addressesToPrefetch := make([][]byte, 0, len(s.journal.dirties))
 	for addr := range s.journal.dirties {
 		obj, exist := s.stateObjects[addr]
@@ -972,6 +998,7 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 			continue
 		}
 		if obj.suicided || (deleteEmptyObjects && obj.empty()) {
+			log.Info("7", "suicided", obj.suicided, "addr", addr, "empty", obj.empty())
 			obj.deleted = true
 
 			// If state snapshotting is active, also mark the destruction there.
@@ -979,6 +1006,7 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 			// transactions within the same block might self destruct and then
 			// ressurrect an account; but the snapshotter needs both events.
 			if s.snap != nil {
+				log.Info("8")
 				s.snapDestructs[obj.address] = struct{}{} // We need to maintain account deletions explicitly (will remain set indefinitely)
 				delete(s.snapAccounts, obj.address)       // Clear out any previously updated account data (may be recreated via a ressurrect)
 				delete(s.snapStorage, obj.address)        // Clear out any previously updated storage data (may be recreated via a ressurrect)
@@ -1024,7 +1052,7 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 	return s.StateIntermediateRoot()
 }
 
-//CorrectAccountsRoot will fix account roots in pipecommit mode
+// CorrectAccountsRoot will fix account roots in pipecommit mode
 func (s *StateDB) CorrectAccountsRoot(blockRoot common.Hash) {
 	var snapshot snapshot.Snapshot
 	if blockRoot == (common.Hash{}) {
@@ -1052,7 +1080,7 @@ func (s *StateDB) CorrectAccountsRoot(blockRoot common.Hash) {
 	}
 }
 
-//PopulateSnapAccountAndStorage tries to populate required accounts and storages for pipecommit
+// PopulateSnapAccountAndStorage tries to populate required accounts and storages for pipecommit
 func (s *StateDB) PopulateSnapAccountAndStorage() {
 	for addr := range s.stateObjectsPending {
 		if obj := s.stateObjects[addr]; !obj.deleted {
@@ -1064,7 +1092,7 @@ func (s *StateDB) PopulateSnapAccountAndStorage() {
 	}
 }
 
-//populateSnapStorage tries to populate required storages for pipecommit, and returns a flag to indicate whether the storage root changed or not
+// populateSnapStorage tries to populate required storages for pipecommit, and returns a flag to indicate whether the storage root changed or not
 func (s *StateDB) populateSnapStorage(obj *StateObject) bool {
 	for key, value := range obj.dirtyStorage {
 		obj.pendingStorage[key] = value
@@ -1344,6 +1372,101 @@ func (s *StateDB) LightCommit() (common.Hash, *types.DiffLayer, error) {
 	return root, s.diffLayer, nil
 }
 
+func (s *StateDB) GatherDiffLayer() *StateDiff {
+	sd := &StateDiff{}
+	sd.Accounts = map[common.Address]*UsedAccount{}
+	sd.Codes = map[common.Hash]hexutil.Bytes{}
+	sd.Storage = map[common.Address]map[common.Hash]hexutil.Bytes{}
+	sd.Destructs = map[common.Address]struct{}{}
+
+	for addr := range s.stateObjectsDirty {
+		if obj := s.stateObjects[addr]; !obj.deleted {
+			// accounts
+			accountByte := snapshot.SlimAccountRLP(obj.data.Nonce, obj.data.Balance, obj.data.Root, obj.data.CodeHash)
+			var a struct {
+				Nonce    uint64
+				Balance  *big.Int
+				Root     []byte
+				CodeHash []byte
+			}
+			if err := rlp.DecodeBytes(accountByte, &a); err != nil {
+				return nil
+			}
+			b := UsedAccount{
+				Nonce:    a.Nonce,
+				Balance:  a.Balance.Uint64(),
+				Root:     common.BytesToHash(a.Root),
+				CodeHash: common.BytesToHash(a.CodeHash),
+			}
+			sd.Accounts[addr] = &b
+
+			// storage
+			storage := map[string][]byte{}
+			for key, value := range obj.pendingStorage {
+				if value == obj.originStorage[key] {
+					continue
+				}
+				var v []byte
+				if (value != common.Hash{}) {
+					v, _ = rlp.EncodeToBytes(common.TrimLeftZeroes(value[:]))
+				}
+				storage[string(key[:])] = v
+			}
+			innerStorage := map[common.Hash]hexutil.Bytes{}
+			for k, v := range storage {
+				innerStorage[common.BytesToHash([]byte(k))] = v
+			}
+			sd.Storage[addr] = innerStorage
+			if value, _ := sd.Storage[addr]; len(value) == 0 {
+				delete(sd.Storage, addr)
+			}
+
+			// codes
+			if obj.code != nil && obj.dirtyCode {
+				sd.Codes[common.BytesToHash(obj.CodeHash())] = []byte(obj.code)
+			}
+		}
+	}
+
+	// destructs
+	for addr := range s.stateObjectsPending {
+		if obj := s.stateObjects[addr]; obj.deleted {
+			slice := make([]common.Address, 0)
+			slice = append(slice, obj.Address())
+			sd.Destructs = sliceToMap(slice) // transfer slice to map just for conveniently doing json diff
+		}
+	}
+
+	//for addr := range s.stateObjectsPending {
+	//	if obj := s.stateObjects[addr]; obj.deleted {
+	//		slice := make([]common.Address, 0)
+	//		slice = append(slice, obj.Address())
+	//		sd.Destructs = sliceToMap(slice)
+	//	}
+	//
+	//	if obj := s.getDeletedStateObject(addr); obj != nil {
+	//		log.Info("lll", "addr", addr)
+	//		if _, ok := sd.Destructs[obj.Address()]; !ok {
+	//			log.Info("bgt", "addr", addr)
+	//			sd.Destructs[obj.Address()] = struct{}{}
+	//		}
+	//	}
+	//}
+
+	if sd.Accounts == nil && sd.Codes == nil && sd.Destructs == nil && sd.Storage == nil {
+		return nil
+	}
+	return sd
+}
+
+func sliceToMap(destructs []common.Address) map[common.Address]struct{} {
+	data := make(map[common.Address]struct{})
+	for _, v := range destructs {
+		data[v] = struct{}{}
+	}
+	return data
+}
+
 // Commit writes the state to the underlying in-memory trie database.
 func (s *StateDB) Commit(failPostCommitFunc func(), postCommitFuncs ...func() error) (common.Hash, *types.DiffLayer, error) {
 	if s.dbErr != nil {
@@ -1369,6 +1492,8 @@ func (s *StateDB) Commit(failPostCommitFunc func(), postCommitFuncs ...func() er
 	var verified chan struct{}
 	var snapUpdated chan struct{}
 
+	log.Info("woyaokan", "pipeCommit", s.pipeCommit)
+
 	if s.snap != nil {
 		diffLayer = &types.DiffLayer{}
 	}
@@ -1384,6 +1509,7 @@ func (s *StateDB) Commit(failPostCommitFunc func(), postCommitFuncs ...func() er
 				<-snapUpdated
 				// Due to state verification pipeline, the accounts roots are not updated, leading to the data in the difflayer is not correct, capture the correct data here
 				s.AccountsIntermediateRoot()
+				log.Info("111")
 				if parent := s.snap.Root(); parent != s.expectedRoot {
 					accountData := make(map[common.Hash][]byte)
 					for k, v := range s.snapAccounts {
@@ -1422,6 +1548,7 @@ func (s *StateDB) Commit(failPostCommitFunc func(), postCommitFuncs ...func() er
 
 			for addr := range s.stateObjectsDirty {
 				if obj := s.stateObjects[addr]; !obj.deleted {
+					log.Info("dddd", "dirty addr", addr)
 					// Write any contract code associated with the state object
 					tasks <- func() {
 						// Write any storage changes in the state object to its storage trie
@@ -1498,6 +1625,7 @@ func (s *StateDB) Commit(failPostCommitFunc func(), postCommitFuncs ...func() er
 			codeWriter := s.db.TrieDB().DiskDB().NewBatch()
 			for addr := range s.stateObjectsDirty {
 				if obj := s.stateObjects[addr]; !obj.deleted {
+					log.Info("wooooo", "addr list", addr)
 					if obj.code != nil && obj.dirtyCode {
 						rawdb.WriteCode(codeWriter, common.BytesToHash(obj.CodeHash()), obj.code)
 						obj.dirtyCode = false
@@ -1536,6 +1664,8 @@ func (s *StateDB) Commit(failPostCommitFunc func(), postCommitFuncs ...func() er
 					s.PopulateSnapAccountAndStorage()
 				}
 				diffLayer.Destructs, diffLayer.Accounts, diffLayer.Storages = s.SnapToDiffLayer()
+				log.Info("qtyu", "Destructs", diffLayer.Destructs)
+				log.Info("uiyl", "Accounts", diffLayer.Accounts)
 				// Only update if there's a state transition (skip empty Clique blocks)
 				if parent := s.snap.Root(); parent != s.expectedRoot {
 					err := s.snaps.Update(s.expectedRoot, parent, s.snapDestructs, s.snapAccounts, s.snapStorage, verified)
