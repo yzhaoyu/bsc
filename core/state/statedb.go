@@ -1546,7 +1546,7 @@ func (s *StateDB) Commit(failPostCommitFunc func(), postCommitFuncs ...func() er
 
 			for addr := range s.stateObjectsDirty {
 				if obj := s.stateObjects[addr]; !obj.deleted {
-					log.Info("dddd", "deleted", addr)
+					log.Info("dddd", "dirty addr", addr)
 					// Write any contract code associated with the state object
 					tasks <- func() {
 						// Write any storage changes in the state object to its storage trie

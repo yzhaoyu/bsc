@@ -424,7 +424,7 @@ func (s *StateObject) updateTrie(db Database) Trie {
 	if len(s.pendingStorage) > 0 {
 		s.pendingStorage = make(Storage)
 	}
-	log.Info("222", "storage")
+	log.Info("bnmm")
 	return tr
 }
 
