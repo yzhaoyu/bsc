@@ -1433,7 +1433,7 @@ func (s *StateDB) GatherDiffLayer() *StateDiff {
 		if obj := s.stateObjects[addr]; obj.deleted {
 			slice := make([]common.Address, 0)
 			slice = append(slice, obj.Address())
-			sd.Destructs = sliceToMap(slice)
+			sd.Destructs = sliceToMap(slice) // transfer slice to map just for conveniently doing json diff
 		}
 	}
 
